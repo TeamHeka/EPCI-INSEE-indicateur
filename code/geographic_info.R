@@ -64,7 +64,9 @@ france[which(france$outremer), "dep1"] <- france[which(france$outremer), "dep"]
 ### All communes and arrondissements
   
 # Source tout <https://www.data.gouv.fr/en/datasets/decoupage-administratif-communal-francais-issu-d-openstreetmap/>
-  
+
+# NOTE: le fichier est trop lourd pour github, il faut aller le retélécharger depuis la source
+
 #  Licence © les contributeurs d'OpenStreetMap sous licence ODbL
 # Toutes les communes
 toutescommunes <- st_read("../data/geographic/communes-20210101-shp/communes-20210101.shp")
