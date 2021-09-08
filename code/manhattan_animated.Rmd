@@ -1,0 +1,198 @@
+---
+title: "Manhattan Plot"
+author: "Emmanuel LECOEUR"
+date: "03/09/2021"
+output: html_document
+---
+
+```{r, echo = F, message = F, warning = F}
+library(tidyverse)
+library(plotly)
+library(gapminder)
+```
+
+
+```{r, echo = F, message = F, warning = F}
+df_OR = read_csv("data/DF_OR_27.csv") %>%
+  arrange(theme, id) %>%
+  mutate (pos = row_number(),
+          week = 27) %>%
+  bind_rows(read_csv("data/DF_OR_32.csv") %>%
+              arrange(theme, id) %>%
+              mutate (pos = row_number(),
+                        week = 32)) %>%
+  bind_rows(read_csv("data/DF_OR_05.csv") %>%
+              arrange(theme, id) %>%
+              mutate (pos = row_number(),
+                        week = 05)) %>%
+  bind_rows(read_csv("data/DF_OR_07.csv") %>%
+              arrange(theme, id) %>%
+              mutate (pos = row_number(),
+                        week = 07)) %>%
+  bind_rows(read_csv("data/DF_OR_09.csv") %>%
+              arrange(theme, id) %>%
+              mutate (pos = row_number(),
+                        week = 09)) %>%
+  bind_rows(read_csv("data/DF_OR_11.csv") %>%
+              arrange(theme, id) %>%
+              mutate (pos = row_number(),
+                        week = 11)) %>%
+  bind_rows(read_csv("data/DF_OR_12.csv") %>%
+              arrange(theme, id) %>%
+              mutate (pos = row_number(),
+                        week = 12)) %>%
+  bind_rows(read_csv("data/DF_OR_15.csv") %>%
+              arrange(theme, id) %>%
+              mutate (pos = row_number(),
+                        week = 15)) %>%
+  bind_rows(read_csv("data/DF_OR_17.csv") %>%
+              arrange(theme, id) %>%
+              mutate (pos = row_number(),
+                        week = 17)) %>%
+  bind_rows(read_csv("data/DF_OR_19.csv") %>%
+              arrange(theme, id) %>%
+              mutate (pos = row_number(),
+                        week = 19)) %>%
+  bind_rows(read_csv("data/DF_OR_21.csv") %>%
+              arrange(theme, id) %>%
+              mutate (pos = row_number(),
+                        week = 21)) %>%
+  bind_rows(read_csv("data/DF_OR_24.csv") %>%
+              arrange(theme, id) %>%
+              mutate (pos = row_number(),
+                        week = 24)) %>%
+  bind_rows(read_csv("data/DF_OR_23.csv") %>%
+              arrange(theme, id) %>%
+              mutate (pos = row_number(),
+                        week = 23)) %>%
+  bind_rows(read_csv("data/DF_OR_26.csv") %>%
+              arrange(theme, id) %>%
+              mutate (pos = row_number(),
+                        week = 26)) %>%
+  bind_rows(read_csv("data/DF_OR_29.csv") %>%
+              arrange(theme, id) %>%
+              mutate (pos = row_number(),
+                        week = 29)) %>%
+  bind_rows(read_csv("data/DF_OR_30.csv") %>%
+              arrange(theme, id) %>%
+              mutate (pos = row_number(),
+                        week = 30)) %>%
+  bind_rows(read_csv("data/DF_OR_32.csv") %>%
+              arrange(theme, id) %>%
+              mutate (pos = row_number(),
+                        week = 32)) %>%
+  bind_rows(read_csv("data/DF_OR_02.csv") %>%
+              arrange(theme, id) %>%
+              mutate (pos = row_number(),
+                        week = 02)) %>%
+  bind_rows(read_csv("data/DF_OR_04.csv") %>%
+              arrange(theme, id) %>%
+              mutate (pos = row_number(),
+                        week = 04)) %>%
+  bind_rows(read_csv("data/DF_OR_14.csv") %>%
+              arrange(theme, id) %>%
+              mutate (pos = row_number(),
+                        week = 14)) %>%
+  bind_rows(read_csv("data/DF_OR_18.csv") %>%
+              arrange(theme, id) %>%
+              mutate (pos = row_number(),
+                        week = 18)) %>%
+  bind_rows(read_csv("data/DF_OR_31.csv") %>%
+              arrange(theme, id) %>%
+              mutate (pos = row_number(),
+                        week = 31)) %>%
+  bind_rows(read_csv("data/DF_OR_33.csv") %>%
+              arrange(theme, id) %>%
+              mutate (pos = row_number(),
+                        week = 33)) %>%
+  mutate(`is_OR_>1` = if_else(`is_OR_>1`, "OR", "1/OR"))
+```
+
+```{r}
+df_OR %>%
+  filter(week == 33) %>%
+  arrange(OR) %>%
+  mutate(pos2 = row_number()) %>%
+  select(Variable, pos2) %>%
+  inner_join(df_OR)
+```
+
+
+Pour construire les graphiques suivants, chaque variable a été dichotomisée par rapport à la médiane (`1` pour supérieur à la médiane et `0` pour inférieur à la médiane).
+
+Pour chaque semaine de l'année 2021, les 25 % des territoires les moins vaccinés sont étiquetés `1` et les autres `0`.
+
+On calcule l'odds ratio pour chaque variable. Cela permet de repérer les variables qui agissent le plus sur le taux de vaccination.
+
+Dans ls graphique suivants, chaque variable a une position fixe sur l'axe des abscisses.
+
+L'axe des ordonnées représente le maximum entre l'odds ratio et son inverse. Ainsi une variable qui agit fortement sur le taux de vaccination aura une position élevée sur le graphque indépendamment de l'influence positive ou négative de son influence. Les variables sont classées par thématique.
+
+La grosseur de chaque point est proportionnelle à l'opposé du logarithme de la p-value.
+
+Puis pour connaitre l'influebce de chaque variable, on ne trace uniquement l'odds ratio et enfin son inverse.
+
+```{r, echo = F, message = F, warning = F}
+fig = df_OR %>%
+  filter(week == 33) %>%
+  arrange(OR) %>%
+  mutate(pos2 = row_number()) %>%
+  select(Variable, pos) %>%
+  inner_join(df_OR) %>%
+  plot_ly(
+    x = ~pos,
+    y = ~`max_OR-inv_OR`,
+    size = ~-log10(p),
+    color = ~theme,
+    frame = ~week,
+    text = ~Variable,
+    hooverinfo = "text",
+    type = "scatter",
+    mode = "markers"
+  )
+fig
+```
+
+
+```{r, echo = F, message = F, warning = F}
+fig = df_OR %>%
+  filter(week == 33) %>%
+  arrange(OR) %>%
+  mutate(pos2 = row_number()) %>%
+  select(Variable, pos2) %>%
+  inner_join(df_OR) %>%
+  plot_ly(
+    x = ~pos2,
+    y = ~`OR`,
+    size = ~-log10(p),
+    color = ~theme,
+    frame = ~week,
+    text = ~Variable,
+    hooverinfo = "text",
+    type = "scatter",
+    mode = "markers"
+  )
+fig
+```
+
+
+```{r, echo = F, message = F, warning = F}
+fig = df_OR %>%
+  filter(week == 33) %>%
+  arrange(OR) %>%
+  mutate(pos2 = row_number()) %>%
+  select(Variable, pos2) %>%
+  inner_join(df_OR) %>%
+  plot_ly(
+    x = ~pos2,
+    y = ~`inv_OR`,
+    size = ~-log10(p),
+    color = ~theme,
+    frame = ~week,
+    text = ~Variable,
+    hooverinfo = "text",
+    type = "scatter",
+    mode = "markers"
+  )
+fig
+```
