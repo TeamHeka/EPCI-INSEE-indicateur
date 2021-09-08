@@ -24,9 +24,9 @@ vacc = read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/d
   select(codgeo, taux_cumu_1_inj) %>%
   mutate(taux_cumu_1_inj = as.numeric(taux_cumu_1_inj)) %>%
   plyr::rbind.fill(read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-commune/download/?format=csv&refine.semaine_injection=2021-", week, "&refine.classe_age=TOUT_AGE&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
-  rename(codgeo = commune_residence) %>%
-  select(codgeo, taux_cumu_1_inj) %>%
-  mutate(taux_cumu_1_inj = as.numeric(taux_cumu_1_inj))) 
+                     rename(codgeo = commune_residence) %>%
+                     select(codgeo, taux_cumu_1_inj) %>%
+                     mutate(taux_cumu_1_inj = as.numeric(taux_cumu_1_inj))) 
 
 vacc %>%
   desctable() %>%
@@ -1075,11 +1075,14 @@ GEO_OM = GEO %>%
   plyr::rbind.fill(GEO %>%
                      filter(!(codgeo %in% c(GEO_gua$SIREN_EPCI, GEO_guy$SIREN_EPCI, GEO_mar$SIREN_EPCI, GEO_may$SIREN, GEO_reu$SIREN_EPCI))))
 
-GEO_fact = GEO %>%
-  filter(codgeo %in% c(GEO_gua$SIREN_EPCI, GEO_guy$SIREN_EPCI, GEO_mar$SIREN_EPCI, GEO_may$SIREN, GEO_reu$SIREN_EPCI)) %>%
-  select(-c(latitude, longitude)) %>%
-  plyr::rbind.fill(GEO %>%
-                     filter(!(codgeo %in% c(GEO_gua$SIREN_EPCI, GEO_guy$SIREN_EPCI, GEO_mar$SIREN_EPCI, GEO_may$SIREN, GEO_reu$SIREN_EPCI)))) %>%
+GEO_OM$lat01 <- (GEO_OM$latitude - min(GEO_OM$latitude, na.rm = T)) / (max(GEO_OM$latitude, na.rm = T) - min(GEO_OM$latitude, na.rm = T))
+GEO_OM$lon01 <- (GEO_OM$longitude - min(GEO_OM$longitude, na.rm = T)) / (max(GEO_OM$longitude, na.rm = T) - min(GEO_OM$longitude, na.rm = T))
+
+GEO_OM = GEO_OM %>%
+  mutate(`SO-NE` = lat01+lon01,
+         `NO-SE` = lon01-lat01)
+
+GEO_fact = GEO_OM %>%
   select(codgeo, latitude, longitude, densite, taux_cumu_1_inj) %>%
   mutate(across(-c(codgeo, taux_cumu_1_inj), binarisation)) %>%
   mutate(taux_cumu_1_inj = binarisation(taux_cumu_1_inj, 0.25),
@@ -1446,8 +1449,10 @@ write_csv2(IMM_OR, "data/IMM_OR.csv")
 GEO_OR = questionr::odds.ratio(GEO_fact$latitude, GEO_fact$taux_cumu_1_inj) %>%
   rbind(questionr::odds.ratio(GEO_fact$longitude, GEO_fact$taux_cumu_1_inj)) %>%
   rbind(questionr::odds.ratio(GEO_fact$densite, GEO_fact$taux_cumu_1_inj)) %>%
+  rbind(questionr::odds.ratio(GEO_fact$`SO-NE`, GEO_fact$taux_cumu_1_inj)) %>%
+  rbind(questionr::odds.ratio(GEO_fact$`NO-SE`, GEO_fact$taux_cumu_1_inj)) %>%
   as.data.frame() %>%
-  bind_cols(Variable = colnames(GEO_fact)[2:4]) %>%
+  bind_cols(Variable = colnames(GEO_fact)[2:6]) %>%
   select(Variable, OR, `2.5 %`, `97.5 %`, p)
 rownames(GEO_OR) = NULL
 write_csv2(GEO_OR, "data/GEO_OR.csv")
@@ -1520,6 +1525,11 @@ ggsave(filename = "manh_p_32.png", path = "plots")
 
 ```{r}
 make_data_covid = function(wk){
+  
+  if (wk/10 <1){
+    wk = paste0("0", wk)
+  }
+  
   vacc_com = read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-commune/download/?format=csv&refine.semaine_injection=2021-", wk, "&refine.classe_age=TOUT_AGE&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
     rename(codgeo = commune_residence) %>%
     select(codgeo, taux_cumu_1_inj) %>%
@@ -1894,8 +1904,10 @@ make_data_covid = function(wk){
   GEO_OR_1107 = questionr::odds.ratio(GEO_1107$latitude, GEO_1107$taux_cumu_1_inj) %>%
     rbind(questionr::odds.ratio(GEO_1107$longitude, GEO_1107$taux_cumu_1_inj)) %>%
     rbind(questionr::odds.ratio(GEO_1107$densite, GEO_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(GEO_fact$`SO-NE`, GEO_fact$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(GEO_fact$`NO-SE`, GEO_fact$taux_cumu_1_inj)) %>%
     as.data.frame() %>%
-    bind_cols(Variable = colnames(GEO_1107)[2:4]) %>%
+    bind_cols(Variable = colnames(GEO_1107)[2:6]) %>%
     select(Variable, OR, `2.5 %`, `97.5 %`, p)
   rownames(GEO_OR) = NULL
   # write_csv2(GEO_OR, "data/GEO_OR.csv")
@@ -1922,3 +1934,4 @@ make_data_covid = function(wk){
   write_csv(DF_OR_1107, paste0("data/DF_OR_", wk, ".csv"))
 }
 ```
+

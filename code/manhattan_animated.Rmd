@@ -11,112 +11,448 @@ library(plotly)
 library(gapminder)
 ```
 
+```{r, echo = F, message = F, warning = F}
+LOG_fact = read_csv("data/LOG_fact.csv", col_type = list(.default = col_factor()))
+EMP_fact = read_csv("data/EMP_fact.csv", col_type = list(.default = col_factor()))
+ACT_fact = read_csv("data/ACT_fact.csv", col_type = list(.default = col_factor()))
+REV_fact = read_csv("data/REV_fact.csv", col_type = list(.default = col_factor()))
+POP_fact = read_csv("data/POP_fact.csv", col_type = list(.default = col_factor()))
+FOR_fact = read_csv("data/FOR_fact.csv", col_type = list(.default = col_factor()))
+IMM_fact = read_csv("data/IMM_fact.csv", col_type = list(.default = col_factor()))
+GEO_fact = read_csv("data/GEO_fact.csv", col_type = list(.default = col_factor()))
+FAM_fact = read_csv("data/FAM_fact.csv", col_type = list(.default = col_factor()))
+```
 
 ```{r, echo = F, message = F, warning = F}
-df_OR = read_csv("data/DF_OR_27.csv") %>%
-  arrange(theme, id) %>%
-  mutate (pos = row_number(),
-          week = 27) %>%
-  bind_rows(read_csv("data/DF_OR_32.csv") %>%
-              arrange(theme, id) %>%
-              mutate (pos = row_number(),
-                        week = 32)) %>%
-  bind_rows(read_csv("data/DF_OR_05.csv") %>%
-              arrange(theme, id) %>%
-              mutate (pos = row_number(),
-                        week = 05)) %>%
-  bind_rows(read_csv("data/DF_OR_07.csv") %>%
-              arrange(theme, id) %>%
-              mutate (pos = row_number(),
-                        week = 07)) %>%
-  bind_rows(read_csv("data/DF_OR_09.csv") %>%
-              arrange(theme, id) %>%
-              mutate (pos = row_number(),
-                        week = 09)) %>%
-  bind_rows(read_csv("data/DF_OR_11.csv") %>%
-              arrange(theme, id) %>%
-              mutate (pos = row_number(),
-                        week = 11)) %>%
-  bind_rows(read_csv("data/DF_OR_12.csv") %>%
-              arrange(theme, id) %>%
-              mutate (pos = row_number(),
-                        week = 12)) %>%
-  bind_rows(read_csv("data/DF_OR_15.csv") %>%
-              arrange(theme, id) %>%
-              mutate (pos = row_number(),
-                        week = 15)) %>%
-  bind_rows(read_csv("data/DF_OR_17.csv") %>%
-              arrange(theme, id) %>%
-              mutate (pos = row_number(),
-                        week = 17)) %>%
-  bind_rows(read_csv("data/DF_OR_19.csv") %>%
-              arrange(theme, id) %>%
-              mutate (pos = row_number(),
-                        week = 19)) %>%
-  bind_rows(read_csv("data/DF_OR_21.csv") %>%
-              arrange(theme, id) %>%
-              mutate (pos = row_number(),
-                        week = 21)) %>%
-  bind_rows(read_csv("data/DF_OR_24.csv") %>%
-              arrange(theme, id) %>%
-              mutate (pos = row_number(),
-                        week = 24)) %>%
-  bind_rows(read_csv("data/DF_OR_23.csv") %>%
-              arrange(theme, id) %>%
-              mutate (pos = row_number(),
-                        week = 23)) %>%
-  bind_rows(read_csv("data/DF_OR_26.csv") %>%
-              arrange(theme, id) %>%
-              mutate (pos = row_number(),
-                        week = 26)) %>%
-  bind_rows(read_csv("data/DF_OR_29.csv") %>%
-              arrange(theme, id) %>%
-              mutate (pos = row_number(),
-                        week = 29)) %>%
-  bind_rows(read_csv("data/DF_OR_30.csv") %>%
-              arrange(theme, id) %>%
-              mutate (pos = row_number(),
-                        week = 30)) %>%
-  bind_rows(read_csv("data/DF_OR_32.csv") %>%
-              arrange(theme, id) %>%
-              mutate (pos = row_number(),
-                        week = 32)) %>%
-  bind_rows(read_csv("data/DF_OR_02.csv") %>%
-              arrange(theme, id) %>%
-              mutate (pos = row_number(),
-                        week = 02)) %>%
-  bind_rows(read_csv("data/DF_OR_04.csv") %>%
-              arrange(theme, id) %>%
-              mutate (pos = row_number(),
-                        week = 04)) %>%
-  bind_rows(read_csv("data/DF_OR_14.csv") %>%
-              arrange(theme, id) %>%
-              mutate (pos = row_number(),
-                        week = 14)) %>%
-  bind_rows(read_csv("data/DF_OR_18.csv") %>%
-              arrange(theme, id) %>%
-              mutate (pos = row_number(),
-                        week = 18)) %>%
-  bind_rows(read_csv("data/DF_OR_31.csv") %>%
-              arrange(theme, id) %>%
-              mutate (pos = row_number(),
-                        week = 31)) %>%
-  bind_rows(read_csv("data/DF_OR_33.csv") %>%
-              arrange(theme, id) %>%
-              mutate (pos = row_number(),
-                        week = 33)) %>%
-  mutate(`is_OR_>1` = if_else(`is_OR_>1`, "OR", "1/OR"))
+binarisation = function(liste, q = 0.5){
+  mediane = quantile(liste, q, na.rm = T)[[1]]
+  return(as.factor(simplify2array(lapply(liste-mediane,
+                                         function(x){if_else(x < 0, 0, 1)}))))
+}
+
+make_data_covid = function(wk){
+  
+  if (wk/10 <1){
+    wk = paste0("0", wk)
+  }
+  
+  vacc_com = read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-commune/download/?format=csv&refine.semaine_injection=2021-", wk, "&refine.classe_age=TOUT_AGE&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
+    mutate(codgeo = as.factor(commune_residence)) %>%
+    select(codgeo, taux_cumu_1_inj) %>%
+    mutate(taux_cumu_1_inj = as.numeric(taux_cumu_1_inj))
+  
+  
+  vacc = read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-", wk, "&refine.classe_age=TOUT_AGE&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
+    mutate(codgeo = as.factor(epci)) %>%
+    select(codgeo, taux_cumu_1_inj) %>%
+    mutate(taux_cumu_1_inj = as.numeric(taux_cumu_1_inj)) %>%
+    plyr::rbind.fill(vacc_com)
+  
+  
+  LOG_1107 = LOG_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(taux_cumu_1_inj, 0.25)))
+  EMP_1107 = EMP_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(taux_cumu_1_inj, 0.25)))
+  FAM_1107 = FAM_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(taux_cumu_1_inj, 0.25)))
+  REV_1107 = REV_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(taux_cumu_1_inj, 0.25)))
+  ACT_1107 = ACT_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(taux_cumu_1_inj, 0.25)))
+  FOR_1107 = FOR_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(taux_cumu_1_inj, 0.25)))
+  POP_1107 = POP_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(taux_cumu_1_inj, 0.25)))
+  IMM_1107 = IMM_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(taux_cumu_1_inj, 0.25)))
+  GEO_1107 = GEO_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(taux_cumu_1_inj, 0.25)))
+  
+  
+  LOG_OR_1107 = questionr::odds.ratio(LOG_1107$`1ry_res`, LOG_1107$taux_cumu_1_inj) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`2ry_res`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`Vacant_Home`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`Houses`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`Flats`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`Nb_Rooms_1ry_res`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`House_1ry_res`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`Flat_1ry_res`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`1ry_res_bf_1919`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`1ry_res_19-45`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`1ry_res_46-70`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`1ry_res_71-90`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`1ry_res_91-05`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`1ry_res_06-15`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`HH_Moving_Time_lt2y`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`HH_Moving_Time_2to4y`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`HH_Moving_Time_5to9y`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`HH_Moving_Time_10to19y`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`HH_Moving_Time_20to29y`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`HH_Moving_Time_gt30y`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`1ry_res_Owner`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`1ry_res_Tenant`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`1ry_res_Social`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`1ry_res_FreeAcc`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`1ry_res_Carpark`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`1ry_res_0car`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`1ry_res_1car`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`1ry_res_2car`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`1ry_res_3+car`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`Pop_per_1ry_res`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`1ry_res_gt0car`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`Pop_per_1ry_res_Owner`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`Pop_per_1ry_res_Tenant`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`Pop_per_1ry_res_Social`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`Pop_per_1ry_res_FreeAcc`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`1ry_res_Occupancy`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`Owners_Occupancy`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`Tenant_Occupancy`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`Social_Occupancy`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`FreeAcc_Occupancy`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`Overcrowding_rate`, LOG_1107$taux_cumu_1_inj)) %>%
+    as.data.frame() %>%
+    bind_cols(Variable = colnames(LOG_1107)[2:42]) %>%
+    select(Variable, OR, `2.5 %`, `97.5 %`, p)
+  rownames(LOG_OR_1107) = NULL
+  # write_csv2(LOG_OR, "data/LOG_OR.csv")
+  
+  
+  EMP_OR_1107 = questionr::odds.ratio(EMP_1107$`1564_Workforce_rate`, EMP_1107$taux_cumu_1_inj) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1524_Workforce_rate`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`2554_Workforce_rate`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`5564_Workforce_rate`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_men_Workforce_rate`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1524_men_Workforce_rate`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`2554_men_Workforce_rate`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`5564_men_Workforce_rate`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_women_Workforce_rate`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1524_women_Workforce_rate`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`2554_women_Workforce_rate`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`5564_women_Workforce_rate`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_Employed_rate_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1524_Employed_rate_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`2554_Employed_rate_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`5564_Employed_rate_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_men_Employed_rate_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1524_men_Employed_rate_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`2554_men_Employed_rate_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`5564_men_Employed_rate_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_women_Employed_rate_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1524_women_Employed_rate_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`2554_women_Employed_rate_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`5564_women_Employed_rate_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_Unemployed_rate_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1524_Unemployed_rate_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`2554_Unemployed_rate_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`5564_Unemployed_rate_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_NonWorking_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_Student_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_Retired_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_OtherInactive_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_men_Unemplyed_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_women_Unemplyed_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_Student_amg_NW`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_Retired_amg_NW`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_OtherInactive_amg_NW`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_NonWorking_amg_POP`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_Farmers_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_CraftsBusinessShopkeepers_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_HihgQualWorkers_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_IntermediateProf_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_BlueCollar_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_WhiteCollar_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_Farmers_amg_EmpWF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_CraftsBusinessShopkeepers_amg_EmpWF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_HihgQualWorkers_amg_EmpWF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_IntermediateProf_amg_EmpWF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_BlueCollar_amg_EmpWF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_WhiteCollar_amg_EmpWF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`15+_men_amg_empWF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`15+_women_amg_empWF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`15+_Salaried_amg_empWF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`15+_NonSalaried_amg_empWF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`15+_FullTime_amg_empWF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`15+_men_amg_salWF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`15+_women_amg_salWF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`15+_men_amg_nonsalWF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`15+_women_amg_nonsalWF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`15+_men_amg_FullTimeWF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`15+_women_amg_FullTimeWF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`15+_FullTime_amg_salWF`, EMP_1107$taux_cumu_1_inj)) %>%
+    as.data.frame() %>%
+    bind_cols(Variable = colnames(EMP_1107)[2:63]) %>%
+    select(Variable, OR, `2.5 %`, `97.5 %`, p)
+  rownames(EMP_OR_1107) = NULL
+  # write_csv2(EMP_OR, "data/EMP_OR.csv")
+  
+  
+  FAM_OR_1107 = questionr::odds.ratio(FAM_1107$`SinglePerson_HH`, FAM_1107$taux_cumu_1_inj) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`SingleMan_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`SingleWoman_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`OtherNoFamily_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`Family_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`NoChildFamily_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`ChildFamily_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`SingleParent_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`Farmer_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`CraftsBusinessShopkeepers_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`HighQualidied_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`Intermediate_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`BlueCollar_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`WhiteCollar_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`Retired_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`Other_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`15+_SinglePerson_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`Pop_SingleMan_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`Pop_SingleWoman_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`Pop_OtherNoFamily_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`Pop_Family_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`Pop_NoChildFamily_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`Pop_ChildFamily_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`Pop_SingleParent_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`Pop_Farmer_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`Pop_CraftsBusinessShopkeepers_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`Pop_HighQualidied_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`Pop_Intermediate_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`Pop_BlueCollar_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`Pop_WhiteCollar_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`Pop_Retired_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`Pop_Other_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`1524_amg_15+POP`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`2554_amg_15+POP`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`5579_amg_15+POP`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`80+_amg_15+POP`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`15+_Single_amg_POP`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`15+_Married_amg_POP`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`15+_nonMarried_amg_POP`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`1524_amg_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`2554_amg_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`5579_amg_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`80+_amg_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`1524_amg_Single`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`2554_amg_Single`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`5579_amg_Single`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`80+_amg_Single`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`Family_w_Children_amg_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`Single_Parent_Family_amg_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`Family_wo_Children_amg_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    as.data.frame() %>%
+    bind_cols(Variable = colnames(FAM_1107)[2:51]) %>%
+    select(Variable, OR, `2.5 %`, `97.5 %`, p)
+  rownames(FAM_OR_1107) = NULL
+  # write_csv2(FAM_OR, "data/FAM_OR.csv")
+  
+  
+  REV_OR_1107 = questionr::odds.ratio(REV_1107$`D1_st_Living`, REV_1107$taux_cumu_1_inj) %>%
+    rbind(questionr::odds.ratio(REV_1107$`Median_st_Living`, REV_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(REV_1107$`D9_st_Living`, REV_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(REV_1107$`Interdecile_91_Ratio`, REV_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(REV_1107$`Taxable_HH`, REV_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(REV_1107$`Poverty_amg_Owners`, REV_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(REV_1107$`Poverty_amg_Tenants`, REV_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(REV_1107$`-30_Poverty`, REV_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(REV_1107$`3039_Poverty`, REV_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(REV_1107$`4049_Poverty`, REV_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(REV_1107$`5059_Poverty`, REV_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(REV_1107$`6074_Poverty`, REV_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(REV_1107$`75+_Poverty`, REV_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(REV_1107$`Poverty`, REV_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(REV_1107$`Activity_Income`, REV_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(REV_1107$`Salary_Income`, REV_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(REV_1107$`Unemployment_Benef`, REV_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(REV_1107$`Self-Employment`, REV_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(REV_1107$`Pensions_Annuities`, REV_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(REV_1107$`Estate`, REV_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(REV_1107$`Social_Benef`, REV_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(REV_1107$`Family_Benef`, REV_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(REV_1107$`Social_Minima`, REV_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(REV_1107$`Housing_Benef`, REV_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(REV_1107$`Tax`, REV_1107$taux_cumu_1_inj)) %>%
+    as.data.frame() %>%
+    bind_cols(Variable = colnames(REV_1107)[2:26]) %>%
+    select(Variable, OR, `2.5 %`, `97.5 %`, p)
+  rownames(REV_OR_1107) = NULL
+  # write_csv2(REV_OR, "data/REV_OR.csv")
+  
+  
+  ACT_OR_1107 = questionr::odds.ratio(ACT_1107$`Wk_Res_Municipality`, ACT_1107$taux_cumu_1_inj) %>%
+    rbind(questionr::odds.ratio(ACT_1107$`Wk_Res_County-Municipality`, ACT_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(ACT_1107$`Wk_Res_Region-County`, ACT_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(ACT_1107$`Wk_Res_Country-Region`, ACT_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(ACT_1107$`Wk_Dom_Com_Abroad`, ACT_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(ACT_1107$`noTransport_toWk`, ACT_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(ACT_1107$`Walk_toWk`, ACT_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(ACT_1107$`Bike_toWk`, ACT_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(ACT_1107$`Motorbike_toWk`, ACT_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(ACT_1107$`Drive_toWk`, ACT_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(ACT_1107$`PublicTrans_toWk`, ACT_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(ACT_1107$`15+_Men_amg_salWF`, ACT_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(ACT_1107$`15+_Women_amg_salWF`, ACT_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(ACT_1107$`15+_PermanentContract_amg_salWF`, ACT_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(ACT_1107$`15+_ShortTermContract_amg_salWF`, ACT_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(ACT_1107$`15+_InterimContract_amg_salWF`, ACT_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(ACT_1107$`15+_SubsidizedWork_amg_salWF`, ACT_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(ACT_1107$`15+_ApprenticeContract_amg_salWF`, ACT_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(ACT_1107$`15+_SelfEmployed_amg_nonsalWF`, ACT_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(ACT_1107$`15+_Employers_amg_nonsalWF`, ACT_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(ACT_1107$`15+_caregivers_amg_nonsalWF`, ACT_1107$taux_cumu_1_inj)) %>%
+    as.data.frame() %>%
+    bind_cols(Variable = colnames(ACT_1107)[2:22]) %>%
+    select(Variable, OR, `2.5 %`, `97.5 %`, p)
+  rownames(ACT_OR_1107) = NULL
+  # write_csv2(ACT_OR, "data/ACT_OR.csv")
+  
+  
+  FOR_OR_1107 = questionr::odds.ratio(FOR_1107$`0205_School`, FOR_1107$taux_cumu_1_inj) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`0610_School`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`1114_School`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`1517_School`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`1824_School`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`2529_School`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`30+_School`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`15+_NoDiploma_amg_WF`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`15+_CertifGeneEducation_amg_WF`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`15+_VocationalGraduate_amg_WF`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`15+_HighSchoolGraduate_amg_WF`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`15+_HSG+2_amg_WF`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`15+_HSG+4_amg_WF`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`15+_HSG+5+_amg_WF`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`15+_HighEducation_amg_WF`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`15+_men_NoDiploma_amg_mWF`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`15+_men_VocationalGraduate_amg_mWF`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`15+_men_HighSchoolGraduate_amg_mWF`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`15+_men_HighEducation_amg_mWF`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`15+_women_NoDiploma_amg_wWF`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`15+_women_VocationalGraduate_amg_wWF`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`15+_women_HighSchoolGraduate_amg_wWF`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`15+_women_HighEducation_amg_wWF`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`15+_MenOnWomen_NoDiploma`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`15+_MenOnWomen_VocationalGraduate`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`15+_MenOnWomen_HighSchoolGraduate`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`15+_MenOnWomen_HighEducation`, FOR_1107$taux_cumu_1_inj)) %>%
+    as.data.frame() %>%
+    bind_cols(Variable = colnames(FOR_1107)[2:28]) %>%
+    select(Variable, OR, `2.5 %`, `97.5 %`, p)
+  rownames(FOR_OR_1107) = NULL
+  # write_csv2(FOR_OR, "data/FOR_OR.csv")
+  
+  
+  POP_OR_1107 = questionr::odds.ratio(POP_1107$`0014_amg_POP`, POP_1107$taux_cumu_1_inj) %>%
+    rbind(questionr::odds.ratio(POP_1107$`1529_amg_POP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`3044_amg_POP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`4559_amg_POP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`6074_amg_POP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`7589_amg_POP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`90+_amg_POP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`Men`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`0019_amg_POP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`2064_amg_POP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`65+_amg_POP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_Farmers_amg_POP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_CraftsBusinessShopkeeper_amg_POP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_ManagersHigherIntellectProf_amg_POP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_IntermediateProf_amg_POP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_WhiteCollar_amg_POP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_BlueCollar_amg_POP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_Retired_amg_POP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_OtherNoActivity_amg_POP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`0014_men_amg_mPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`1529_men_amg_mPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`3044_men_amg_mPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`4559_men_amg_mPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`6074_men_amg_mPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`7589_men_amg_mPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`90+_men_amg_mPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`0019_men_amg_mPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`2064_men_amg_mPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`65+_men_amg_mPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_men_Farmers_amg_mPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_men_CraftsBusinessShopkeeper_amg_mPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_men_ManagersHigherIntellectProf_amg_mPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_men_IntermediateProf_amg_mPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_men_WhiteCollar_amg_mPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_men_BlueCollar_amg_mPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_men_Retired_amg_mPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_men_OtherNoActivity_amg_POP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`0014_women_amg_wPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`1529_women_amg_wPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`3044_women_amg_wPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`4559_women_amg_wPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`6074_women_amg_wPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`7589_women_amg_wPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`90+_women_amg_wPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`0019_women_amg_wPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`2064_women_amg_wPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`65+_women_amg_wPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_women_Farmers_amg_wPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_women_CraftsBusinessShopkeeper_amg_wPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_women_ManagersHigherIntellectProf_amh_wPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_women_IntermediateProf_amg_wPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_women_WhiteCollar_amg_wPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_women_BlueCollar_amg_wPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_women_Retired_amg_wPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_women_OtherNoActivity_amg_wPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    as.data.frame() %>%
+    bind_cols(Variable = colnames(POP_1107)[2:56]) %>%
+    select(Variable, OR, `2.5 %`, `97.5 %`, p)
+  rownames(POP_OR_1107) = NULL
+  # write_csv2(POP_OR, "data/POP_OR.csv")
+  
+  
+  IMM_OR_1107 = questionr::odds.ratio(IMM_1107$`French_nlty`, IMM_1107$taux_cumu_1_inj) %>%
+    rbind(questionr::odds.ratio(IMM_1107$`Stranger`, IMM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(IMM_1107$`Immigrant`, IMM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(IMM_1107$`French_nlty_amg_Men`, IMM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(IMM_1107$`Stranger_amg_Men`, IMM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(IMM_1107$`Immigrant_amg_Men`, IMM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(IMM_1107$`French_nlty_amg_Women`, IMM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(IMM_1107$`Stranger_amg_Women`, IMM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(IMM_1107$`Immigrant_amg_Women`, IMM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(IMM_1107$`Res_Abroad_2017`, IMM_1107$taux_cumu_1_inj)) %>%
+    as.data.frame() %>%
+    bind_cols(Variable = colnames(IMM_1107)[2:11]) %>%
+    select(Variable, OR, `2.5 %`, `97.5 %`, p)
+  rownames(IMM_OR_1107) = NULL
+  # write_csv2(IMM_OR, "data/IMM_OR.csv")
+  
+  
+  GEO_OR_1107 = questionr::odds.ratio(GEO_1107$latitude, GEO_1107$taux_cumu_1_inj) %>%
+    rbind(questionr::odds.ratio(GEO_1107$longitude, GEO_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(GEO_1107$densite, GEO_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(GEO_fact$`SO-NE`, GEO_fact$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(GEO_fact$`NO-SE`, GEO_fact$taux_cumu_1_inj)) %>%
+    as.data.frame() %>%
+    bind_cols(Variable = colnames(GEO_1107)[2:6]) %>%
+    select(Variable, OR, `2.5 %`, `97.5 %`, p)
+  rownames(GEO_OR_1107) = NULL
+  # write_csv2(GEO_OR, "data/GEO_OR.csv")
+  
+  
+  DF_OR_1107 = LOG_OR_1107 %>% mutate(theme = "Logement", .after = Variable) %>%
+    bind_rows(EMP_OR_1107 %>% mutate(theme = "Emploi", .after = Variable)) %>%
+    bind_rows(FAM_OR_1107 %>% mutate(theme = "Famille", .after = Variable)) %>%
+    bind_rows(REV_OR_1107 %>% mutate(theme = "Revenus", .after = Variable)) %>%
+    bind_rows(ACT_OR_1107 %>% mutate(theme = "Activite", .after = Variable)) %>%
+    bind_rows(FOR_OR_1107 %>% mutate(theme = "Formation", .after = Variable)) %>%
+    bind_rows(POP_OR_1107 %>% mutate(theme = "Population", .after = Variable)) %>%
+    bind_rows(IMM_OR_1107 %>% mutate(theme = "Immigration", .after = Variable)) %>%
+    bind_rows(GEO_OR_1107 %>% mutate(theme = "Geographie", .after = Variable)) %>%
+    group_by(theme) %>%
+    mutate(id = row_number()) %>%
+    ungroup() %>%
+    mutate(inv_OR = 1/OR,
+           `inv_2.5 %` = 1/`97.5 %`,
+           `inv_97.5 %` = 1/`2.5 %`,
+           `is_OR_>1` = OR > inv_OR,
+           `max_OR-inv_OR` = if_else(`is_OR_>1`, OR, inv_OR)) %>%
+    arrange(desc(`max_OR-inv_OR`))
+  return(DF_OR_1107)
+}
 ```
 
-```{r}
-df_OR %>%
-  filter(week == 33) %>%
-  arrange(OR) %>%
-  mutate(pos2 = row_number()) %>%
-  select(Variable, pos2) %>%
-  inner_join(df_OR)
+```{r, echo = F, message = F, warning = F}
+data = NULL
+for (i in 2:33){
+  data = bind_rows(
+    data,
+    make_data_covid(i) %>%
+      arrange(theme, id) %>%
+      mutate (pos = row_number(),
+              week = i)
+  )
+}
 ```
-
 
 Pour construire les graphiques suivants, chaque variable a été dichotomisée par rapport à la médiane (`1` pour supérieur à la médiane et `0` pour inférieur à la médiane).
 
@@ -133,12 +469,12 @@ La grosseur de chaque point est proportionnelle à l'opposé du logarithme de la
 Puis pour connaitre l'influebce de chaque variable, on ne trace uniquement l'odds ratio et enfin son inverse.
 
 ```{r, echo = F, message = F, warning = F}
-fig = df_OR %>%
+fig = data %>%
   filter(week == 33) %>%
   arrange(OR) %>%
   mutate(pos2 = row_number()) %>%
   select(Variable, pos) %>%
-  inner_join(df_OR) %>%
+  inner_join(data) %>%
   plot_ly(
     x = ~pos,
     y = ~`max_OR-inv_OR`,
@@ -155,12 +491,12 @@ fig
 
 
 ```{r, echo = F, message = F, warning = F}
-fig = df_OR %>%
+fig = data %>%
   filter(week == 33) %>%
   arrange(OR) %>%
   mutate(pos2 = row_number()) %>%
   select(Variable, pos2) %>%
-  inner_join(df_OR) %>%
+  inner_join(data) %>%
   plot_ly(
     x = ~pos2,
     y = ~`OR`,
@@ -177,12 +513,12 @@ fig
 
 
 ```{r, echo = F, message = F, warning = F}
-fig = df_OR %>%
+fig = data %>%
   filter(week == 33) %>%
   arrange(OR) %>%
   mutate(pos2 = row_number()) %>%
   select(Variable, pos2) %>%
-  inner_join(df_OR) %>%
+  inner_join(data) %>%
   plot_ly(
     x = ~pos2,
     y = ~`inv_OR`,
