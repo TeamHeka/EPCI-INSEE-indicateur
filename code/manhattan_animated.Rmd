@@ -9,6 +9,8 @@ output: html_document
 library(tidyverse)
 library(plotly)
 library(gapminder)
+library(desctable)
+library(pander)
 ```
 
 ```{r, echo = F, message = F, warning = F}
@@ -30,35 +32,55 @@ binarisation = function(liste, q = 0.5){
                                          function(x){if_else(x < 0, 0, 1)}))))
 }
 
-make_data_covid = function(wk){
+make_data_covid = function(wk, variable = "taux_cumu_1_inj", classe_age = "tous"){
   
   if (wk/10 <1){
     wk = paste0("0", wk)
   }
   
-  vacc_com = read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-commune/download/?format=csv&refine.semaine_injection=2021-", wk, "&refine.classe_age=TOUT_AGE&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
-    mutate(codgeo = as.factor(commune_residence)) %>%
-    select(codgeo, taux_cumu_1_inj) %>%
-    mutate(taux_cumu_1_inj = as.numeric(taux_cumu_1_inj))
+  if (classe_age == "tous"){
+    vacc_com = read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-commune/download/?format=csv&refine.semaine_injection=2021-", wk, "&refine.classe_age=TOUT_AGE&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
+      mutate(codgeo = as.factor(commune_residence)) %>%
+      mutate(taux_cumu_1_inj = as.numeric(taux_cumu_1_inj))
+    
+    vacc = read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-", wk, "&refine.classe_age=TOUT_AGE&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
+      mutate(codgeo = as.factor(epci)) %>%
+      mutate(taux_cumu_1_inj = as.numeric(taux_cumu_1_inj)) %>%
+      plyr::rbind.fill(vacc_com)
+  }else{
+    vacc_com = read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-commune/download/?format=csv&refine.classe_age=", classe_age, "&refine.semaine_injection=2021-", wk, "&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
+      mutate(codgeo = as.factor(commune_residence)) %>%
+      mutate(taux_cumu_1_inj = as.numeric(taux_cumu_1_inj))
+    
+    vacc = read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-", wk, "&refine.classe_age=", classe_age, "&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
+      mutate(codgeo = as.factor(epci)) %>%
+      mutate(taux_cumu_1_inj = as.numeric(taux_cumu_1_inj)) %>%
+      plyr::rbind.fill(vacc_com)
+  }
   
+  vacc$taux_cumu_1_inj[is.na(vacc$taux_cumu_1_inj)] <- 0
   
-  vacc = read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-", wk, "&refine.classe_age=TOUT_AGE&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
-    mutate(codgeo = as.factor(epci)) %>%
-    select(codgeo, taux_cumu_1_inj) %>%
-    mutate(taux_cumu_1_inj = as.numeric(taux_cumu_1_inj)) %>%
-    plyr::rbind.fill(vacc_com)
-  
-  
-  LOG_1107 = LOG_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(taux_cumu_1_inj, 0.25)))
-  EMP_1107 = EMP_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(taux_cumu_1_inj, 0.25)))
-  FAM_1107 = FAM_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(taux_cumu_1_inj, 0.25)))
-  REV_1107 = REV_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(taux_cumu_1_inj, 0.25)))
-  ACT_1107 = ACT_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(taux_cumu_1_inj, 0.25)))
-  FOR_1107 = FOR_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(taux_cumu_1_inj, 0.25)))
-  POP_1107 = POP_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(taux_cumu_1_inj, 0.25)))
-  IMM_1107 = IMM_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(taux_cumu_1_inj, 0.25)))
-  GEO_1107 = GEO_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(taux_cumu_1_inj, 0.25)))
-  
+  if (variable == "taux_cumu_1_inj"){
+    LOG_1107 = LOG_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(taux_cumu_1_inj, 0.25)))
+    EMP_1107 = EMP_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(taux_cumu_1_inj, 0.25)))
+    FAM_1107 = FAM_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(taux_cumu_1_inj, 0.25)))
+    REV_1107 = REV_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(taux_cumu_1_inj, 0.25)))
+    ACT_1107 = ACT_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(taux_cumu_1_inj, 0.25)))
+    FOR_1107 = FOR_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(taux_cumu_1_inj, 0.25)))
+    POP_1107 = POP_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(taux_cumu_1_inj, 0.25)))
+    IMM_1107 = IMM_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(taux_cumu_1_inj, 0.25)))
+    GEO_1107 = GEO_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(taux_cumu_1_inj, 0.25)))
+  }else if (variable == "taux_1_inj"){
+    LOG_1107 = LOG_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(as.numeric(taux_1_inj, 0.25))))
+    EMP_1107 = EMP_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(as.numeric(taux_1_inj, 0.25))))
+    FAM_1107 = FAM_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(as.numeric(taux_1_inj, 0.25))))
+    REV_1107 = REV_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(as.numeric(taux_1_inj, 0.25))))
+    ACT_1107 = ACT_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(as.numeric(taux_1_inj, 0.25))))
+    FOR_1107 = FOR_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(as.numeric(taux_1_inj, 0.25))))
+    POP_1107 = POP_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(as.numeric(taux_1_inj, 0.25))))
+    IMM_1107 = IMM_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(as.numeric(taux_1_inj, 0.25))))
+    GEO_1107 = GEO_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(as.numeric(taux_1_inj, 0.25))))
+  }
   
   LOG_OR_1107 = questionr::odds.ratio(LOG_1107$`1ry_res`, LOG_1107$taux_cumu_1_inj) %>%
     rbind(questionr::odds.ratio(LOG_1107$`2ry_res`, LOG_1107$taux_cumu_1_inj)) %>%
@@ -106,7 +128,6 @@ make_data_covid = function(wk){
     select(Variable, OR, `2.5 %`, `97.5 %`, p)
   rownames(LOG_OR_1107) = NULL
   # write_csv2(LOG_OR, "data/LOG_OR.csv")
-  
   
   EMP_OR_1107 = questionr::odds.ratio(EMP_1107$`1564_Workforce_rate`, EMP_1107$taux_cumu_1_inj) %>%
     rbind(questionr::odds.ratio(EMP_1107$`1524_Workforce_rate`, EMP_1107$taux_cumu_1_inj)) %>%
@@ -176,7 +197,6 @@ make_data_covid = function(wk){
   rownames(EMP_OR_1107) = NULL
   # write_csv2(EMP_OR, "data/EMP_OR.csv")
   
-  
   FAM_OR_1107 = questionr::odds.ratio(FAM_1107$`SinglePerson_HH`, FAM_1107$taux_cumu_1_inj) %>%
     rbind(questionr::odds.ratio(FAM_1107$`SingleMan_HH`, FAM_1107$taux_cumu_1_inj)) %>%
     rbind(questionr::odds.ratio(FAM_1107$`SingleWoman_HH`, FAM_1107$taux_cumu_1_inj)) %>%
@@ -233,7 +253,6 @@ make_data_covid = function(wk){
   rownames(FAM_OR_1107) = NULL
   # write_csv2(FAM_OR, "data/FAM_OR.csv")
   
-  
   REV_OR_1107 = questionr::odds.ratio(REV_1107$`D1_st_Living`, REV_1107$taux_cumu_1_inj) %>%
     rbind(questionr::odds.ratio(REV_1107$`Median_st_Living`, REV_1107$taux_cumu_1_inj)) %>%
     rbind(questionr::odds.ratio(REV_1107$`D9_st_Living`, REV_1107$taux_cumu_1_inj)) %>%
@@ -265,7 +284,6 @@ make_data_covid = function(wk){
   rownames(REV_OR_1107) = NULL
   # write_csv2(REV_OR, "data/REV_OR.csv")
   
-  
   ACT_OR_1107 = questionr::odds.ratio(ACT_1107$`Wk_Res_Municipality`, ACT_1107$taux_cumu_1_inj) %>%
     rbind(questionr::odds.ratio(ACT_1107$`Wk_Res_County-Municipality`, ACT_1107$taux_cumu_1_inj)) %>%
     rbind(questionr::odds.ratio(ACT_1107$`Wk_Res_Region-County`, ACT_1107$taux_cumu_1_inj)) %>%
@@ -292,7 +310,6 @@ make_data_covid = function(wk){
     select(Variable, OR, `2.5 %`, `97.5 %`, p)
   rownames(ACT_OR_1107) = NULL
   # write_csv2(ACT_OR, "data/ACT_OR.csv")
-  
   
   FOR_OR_1107 = questionr::odds.ratio(FOR_1107$`0205_School`, FOR_1107$taux_cumu_1_inj) %>%
     rbind(questionr::odds.ratio(FOR_1107$`0610_School`, FOR_1107$taux_cumu_1_inj)) %>%
@@ -326,7 +343,6 @@ make_data_covid = function(wk){
     select(Variable, OR, `2.5 %`, `97.5 %`, p)
   rownames(FOR_OR_1107) = NULL
   # write_csv2(FOR_OR, "data/FOR_OR.csv")
-  
   
   POP_OR_1107 = questionr::odds.ratio(POP_1107$`0014_amg_POP`, POP_1107$taux_cumu_1_inj) %>%
     rbind(questionr::odds.ratio(POP_1107$`1529_amg_POP`, POP_1107$taux_cumu_1_inj)) %>%
@@ -389,7 +405,6 @@ make_data_covid = function(wk){
   rownames(POP_OR_1107) = NULL
   # write_csv2(POP_OR, "data/POP_OR.csv")
   
-  
   IMM_OR_1107 = questionr::odds.ratio(IMM_1107$`French_nlty`, IMM_1107$taux_cumu_1_inj) %>%
     rbind(questionr::odds.ratio(IMM_1107$`Stranger`, IMM_1107$taux_cumu_1_inj)) %>%
     rbind(questionr::odds.ratio(IMM_1107$`Immigrant`, IMM_1107$taux_cumu_1_inj)) %>%
@@ -410,8 +425,8 @@ make_data_covid = function(wk){
   GEO_OR_1107 = questionr::odds.ratio(GEO_1107$latitude, GEO_1107$taux_cumu_1_inj) %>%
     rbind(questionr::odds.ratio(GEO_1107$longitude, GEO_1107$taux_cumu_1_inj)) %>%
     rbind(questionr::odds.ratio(GEO_1107$densite, GEO_1107$taux_cumu_1_inj)) %>%
-    rbind(questionr::odds.ratio(GEO_fact$`SO-NE`, GEO_fact$taux_cumu_1_inj)) %>%
-    rbind(questionr::odds.ratio(GEO_fact$`NO-SE`, GEO_fact$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(GEO_1107$`SO-NE`, GEO_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(GEO_1107$`NO-SE`, GEO_1107$taux_cumu_1_inj)) %>%
     as.data.frame() %>%
     bind_cols(Variable = colnames(GEO_1107)[2:6]) %>%
     select(Variable, OR, `2.5 %`, `97.5 %`, p)
@@ -441,6 +456,139 @@ make_data_covid = function(wk){
 }
 ```
 
+# les territoires étudiés
+
+## Les EPCI
+
+```{r, echo = F, message = F, warning = F}
+read.csv2("data/POP.csv") %>%
+  select(codgeo, SEXE.AGE15_15_90_POP_ENS_ENS) %>%
+  rename(Population = SEXE.AGE15_15_90_POP_ENS_ENS) %>%
+  select(Population) %>%
+  desctable(stats = list("N" = length, "Mean" = mean)) %>%
+  pander()
+```
+## Les communes des métropoles de Paris, Lyon, Marseille
+
+```{r, echo = F, message = F, warning = F}
+read.csv2("data/com_POP.csv") %>%
+  select(codgeo, SEXE.AGE15_15_90_POP_ENS_ENS) %>%
+  rename(Population = SEXE.AGE15_15_90_POP_ENS_ENS) %>%
+  select(Population) %>%
+  desctable(stats = list("N" = length, "Mean" = mean)) %>%
+  pander()
+```
+
+# Les variables utilisées pour l'étude
+
+## Thématique Logement
+
+```{r, echo = F, message = F, warning = F}
+read.csv2("data/LOG_brut.csv") %>%
+  select(-c(codgeo, taux_cumu_1_inj)) %>%
+  desctable(stats = list("N" = length, "Med" = median, "IQR" = IQR)) %>%
+  pander()
+```
+
+## Thématique Emploi
+
+```{r, echo = F, message = F, warning = F}
+read.csv2("data/EMP_brut.csv") %>%
+  select(-c(codgeo, taux_cumu_1_inj)) %>%
+  desctable(stats = list("N" = length, "Med" = median, "IQR" = IQR)) %>%
+  pander()
+```
+
+## Thématique Famille
+
+```{r, echo = F, message = F, warning = F}
+read.csv2("data/FAM_brut.csv") %>%
+  select(-c(codgeo, taux_cumu_1_inj)) %>%
+  desctable(stats = list("N" = length, "Med" = median, "IQR" = IQR)) %>%
+  pander()
+```
+
+## Thématique Revenus
+
+```{r, echo = F, message = F, warning = F}
+read.csv2("data/REV_brut.csv") %>%
+  select(-c(codgeo, taux_cumu_1_inj)) %>%
+  desctable(stats = list("N" = length, "Med" = median, "IQR" = IQR)) %>%
+  pander()
+```
+
+## Thématique Activité
+
+```{r, echo = F, message = F, warning = F}
+read.csv2("data/ACT_brut.csv") %>%
+  select(-c(codgeo, taux_cumu_1_inj)) %>%
+  desctable(stats = list("N" = length, "Med" = median, "IQR" = IQR)) %>%
+  pander()
+```
+
+## Thématique Formation
+
+```{r, echo = F, message = F, warning = F}
+read.csv2("data/FOR_brut.csv") %>%
+  select(-c(codgeo, taux_cumu_1_inj)) %>%
+  desctable(stats = list("N" = length, "Med" = median, "IQR" = IQR)) %>%
+  pander()
+```
+
+## Thématique Population
+
+```{r, echo = F, message = F, warning = F}
+read.csv2("data/POP_brut.csv") %>%
+  select(-c(codgeo, taux_cumu_1_inj)) %>%
+  desctable(stats = list("N" = length, "Med" = median, "IQR" = IQR)) %>%
+  pander()
+```
+
+## Thématique Logement
+
+```{r, echo = F, message = F, warning = F}
+read.csv2("data/LOG_brut.csv") %>%
+  select(-c(codgeo, taux_cumu_1_inj)) %>%
+  desctable(stats = list("N" = length, "Med" = median, "IQR" = IQR)) %>%
+  pander()
+```
+
+## Thématique Immigration
+
+```{r, echo = F, message = F, warning = F}
+read.csv2("data/IMM_brut.csv") %>%
+  select(-c(codgeo, taux_cumu_1_inj)) %>%
+  desctable(stats = list("N" = length, "Med" = median, "IQR" = IQR)) %>%
+  pander()
+```
+
+## Thématique Géographie
+
+```{r, echo = F, message = F, warning = F}
+read.csv("data/GEO_brut.csv") %>%
+  select(-c(codgeo, taux_cumu_1_inj, X, SEXE.AGE3_B_POP_ENS_ENS, lat01, lon01, superficie)) %>%
+  desctable(stats = list("N" = length, "Med" = median, "IQR" = IQR)) %>%
+  pander()
+```
+
+# Manhattan
+
+Pour construire les graphiques suivants, chaque variable a été dichotomisée par rapport à la médiane (`1` pour supérieur à la médiane et `0` pour inférieur à la médiane).
+
+Pour chaque semaine de l'année 2021, les 25 % des territoires les moins vaccinés sont étiquetés `1` et les autres `0`.
+
+On calcule l'odds ratio pour chaque variable. Cela permet de repérer les variables qui agissent le plus sur le taux de vaccination.
+
+Dans ls graphique suivants, chaque variable a une position fixe sur l'axe des abscisses.
+
+L'axe des ordonnées représente le maximum entre l'odds ratio et son inverse. Ainsi une variable qui agit fortement sur le taux de vaccination aura une position élevée sur le graphque indépendamment de l'influence positive ou négative de son influence. Les variables sont classées par thématique.
+
+La grosseur de chaque point est proportionnelle à $-\log_{10}(p)$.
+
+Puis pour connaitre l'influebce de chaque variable, on ne trace uniquement l'odds ratio et enfin son inverse.
+
+## Données cumulées
+
 ```{r, echo = F, message = F, warning = F}
 data = NULL
 for (i in 2:33){
@@ -453,20 +601,6 @@ for (i in 2:33){
   )
 }
 ```
-
-Pour construire les graphiques suivants, chaque variable a été dichotomisée par rapport à la médiane (`1` pour supérieur à la médiane et `0` pour inférieur à la médiane).
-
-Pour chaque semaine de l'année 2021, les 25 % des territoires les moins vaccinés sont étiquetés `1` et les autres `0`.
-
-On calcule l'odds ratio pour chaque variable. Cela permet de repérer les variables qui agissent le plus sur le taux de vaccination.
-
-Dans ls graphique suivants, chaque variable a une position fixe sur l'axe des abscisses.
-
-L'axe des ordonnées représente le maximum entre l'odds ratio et son inverse. Ainsi une variable qui agit fortement sur le taux de vaccination aura une position élevée sur le graphque indépendamment de l'influence positive ou négative de son influence. Les variables sont classées par thématique.
-
-La grosseur de chaque point est proportionnelle à l'opposé du logarithme de la p-value.
-
-Puis pour connaitre l'influebce de chaque variable, on ne trace uniquement l'odds ratio et enfin son inverse.
 
 ```{r, echo = F, message = F, warning = F}
 fig = data %>%
@@ -492,14 +626,14 @@ fig
 
 ```{r, echo = F, message = F, warning = F}
 fig = data %>%
-  filter(week == 33) %>%
+  filter(week == 27) %>%
   arrange(OR) %>%
-  mutate(pos2 = row_number()) %>%
-  select(Variable, pos2) %>%
+  mutate(asc_OR = row_number()) %>%
+  select(Variable, asc_OR) %>%
   inner_join(data) %>%
   plot_ly(
-    x = ~pos2,
-    y = ~`OR`,
+    x = ~asc_OR,
+    y = ~`max_OR-inv_OR`,
     size = ~-log10(p),
     color = ~theme,
     frame = ~week,
@@ -511,17 +645,31 @@ fig = data %>%
 fig
 ```
 
+## Données à la semaine non cumulées
+
+```{r, echo = F, message = F, warning = F}
+data = NULL
+for (i in 2:33){
+  data = bind_rows(
+    data,
+    make_data_covid(i, variable = "taux_1_inj") %>%
+      arrange(theme, id) %>%
+      mutate (pos = row_number(),
+              week = i)
+  )
+}
+```
 
 ```{r, echo = F, message = F, warning = F}
 fig = data %>%
   filter(week == 33) %>%
   arrange(OR) %>%
   mutate(pos2 = row_number()) %>%
-  select(Variable, pos2) %>%
+  select(Variable, pos) %>%
   inner_join(data) %>%
   plot_ly(
-    x = ~pos2,
-    y = ~`inv_OR`,
+    x = ~pos,
+    y = ~`max_OR-inv_OR`,
     size = ~-log10(p),
     color = ~theme,
     frame = ~week,
@@ -532,3 +680,405 @@ fig = data %>%
   )
 fig
 ```
+
+```{r, echo = F, message = F, warning = F}
+fig = data %>%
+  filter(week == 27) %>%
+  arrange(OR) %>%
+  mutate(asc_OR = row_number()) %>%
+  select(Variable, asc_OR) %>%
+  inner_join(data) %>%
+  plot_ly(
+    x = ~asc_OR,
+    y = ~`max_OR-inv_OR`,
+    size = ~-log10(p),
+    color = ~theme,
+    frame = ~week,
+    text = ~Variable,
+    hooverinfo = "text",
+    type = "scatter",
+    mode = "markers"
+  )
+fig
+```
+
+# Par classe d'âge
+
+## 0 - 19 ans
+
+```{r, echo = F, message = F, warning = F}
+data = NULL
+for (i in 18:33){
+  data = bind_rows(
+    data,
+    make_data_covid(i, classe_age = "00-19") %>%
+      arrange(theme, id) %>%
+      mutate (pos = row_number(),
+              week = i)
+  )
+}
+
+# test = read_csv2(url("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-22&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B")) %>%
+#   filter(classe_age != "00-19") %>%
+#   group_by(epci) %>%
+#   summarise(cumu_periode = sum(as.numeric(taux_1_inj))) %>%
+#   ungroup()
+```
+
+```{r, echo = F, message = F, warning = F}
+fig = data %>%
+  filter(week == 33) %>%
+  arrange(OR) %>%
+  mutate(pos2 = row_number()) %>%
+  select(Variable, pos) %>%
+  inner_join(data) %>%
+  plot_ly(
+    x = ~pos,
+    y = ~`max_OR-inv_OR`,
+    size = ~-log10(p),
+    color = ~theme,
+    frame = ~week,
+    text = ~Variable,
+    hooverinfo = "text",
+    type = "scatter",
+    mode = "markers"
+  )
+fig
+```
+
+```{r, echo = F, message = F, warning = F}
+fig = data %>%
+  filter(week == 27) %>%
+  arrange(OR) %>%
+  mutate(asc_OR = row_number()) %>%
+  select(Variable, asc_OR) %>%
+  inner_join(data) %>%
+  plot_ly(
+    x = ~asc_OR,
+    y = ~`max_OR-inv_OR`,
+    size = ~-log10(p),
+    color = ~theme,
+    frame = ~week,
+    text = ~Variable,
+    hooverinfo = "text",
+    type = "scatter",
+    mode = "markers"
+  )
+fig
+```
+
+## 20 - 39 ans
+
+```{r, echo = F, message = F, warning = F}
+data = NULL
+for (i in 2:33){
+  data = bind_rows(
+    data,
+    make_data_covid(i, classe_age = "20-39") %>%
+      arrange(theme, id) %>%
+      mutate (pos = row_number(),
+              week = i)
+  )
+}
+
+# test = read_csv2(url("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-22&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B")) %>%
+#   filter(classe_age != "00-19") %>%
+#   group_by(epci) %>%
+#   summarise(cumu_periode = sum(as.numeric(taux_1_inj))) %>%
+#   ungroup()
+```
+
+```{r, echo = F, message = F, warning = F}
+fig = data %>%
+  filter(week == 33) %>%
+  arrange(OR) %>%
+  mutate(pos2 = row_number()) %>%
+  select(Variable, pos) %>%
+  inner_join(data) %>%
+  plot_ly(
+    x = ~pos,
+    y = ~`max_OR-inv_OR`,
+    size = ~-log10(p),
+    color = ~theme,
+    frame = ~week,
+    text = ~Variable,
+    hooverinfo = "text",
+    type = "scatter",
+    mode = "markers"
+  )
+fig
+```
+
+```{r, echo = F, message = F, warning = F}
+fig = data %>%
+  filter(week == 27) %>%
+  arrange(OR) %>%
+  mutate(asc_OR = row_number()) %>%
+  select(Variable, asc_OR) %>%
+  inner_join(data) %>%
+  plot_ly(
+    x = ~asc_OR,
+    y = ~`max_OR-inv_OR`,
+    size = ~-log10(p),
+    color = ~theme,
+    frame = ~week,
+    text = ~Variable,
+    hooverinfo = "text",
+    type = "scatter",
+    mode = "markers"
+  )
+fig
+```
+
+## 40 - 54 ans
+
+```{r, echo = F, message = F, warning = F}
+data = NULL
+for (i in 2:33){
+  data = bind_rows(
+    data,
+    make_data_covid(i, classe_age = "40-54") %>%
+      arrange(theme, id) %>%
+      mutate (pos = row_number(),
+              week = i)
+  )
+}
+
+# test = read_csv2(url("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-22&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B")) %>%
+#   filter(classe_age != "00-19") %>%
+#   group_by(epci) %>%
+#   summarise(cumu_periode = sum(as.numeric(taux_1_inj))) %>%
+#   ungroup()
+```
+
+```{r, echo = F, message = F, warning = F}
+fig = data %>%
+  filter(week == 33) %>%
+  arrange(OR) %>%
+  mutate(pos2 = row_number()) %>%
+  select(Variable, pos) %>%
+  inner_join(data) %>%
+  plot_ly(
+    x = ~pos,
+    y = ~`max_OR-inv_OR`,
+    size = ~-log10(p),
+    color = ~theme,
+    frame = ~week,
+    text = ~Variable,
+    hooverinfo = "text",
+    type = "scatter",
+    mode = "markers"
+  )
+fig
+```
+
+```{r, echo = F, message = F, warning = F}
+fig = data %>%
+  filter(week == 27) %>%
+  arrange(OR) %>%
+  mutate(asc_OR = row_number()) %>%
+  select(Variable, asc_OR) %>%
+  inner_join(data) %>%
+  plot_ly(
+    x = ~asc_OR,
+    y = ~`max_OR-inv_OR`,
+    size = ~-log10(p),
+    color = ~theme,
+    frame = ~week,
+    text = ~Variable,
+    hooverinfo = "text",
+    type = "scatter",
+    mode = "markers"
+  )
+fig
+```
+
+## 55 - 64 ans
+
+```{r, echo = F, message = F, warning = F}
+data = NULL
+for (i in 2:33){
+  data = bind_rows(
+    data,
+    make_data_covid(i, classe_age = "55-64") %>%
+      arrange(theme, id) %>%
+      mutate (pos = row_number(),
+              week = i)
+  )
+}
+
+# test = read_csv2(url("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-22&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B")) %>%
+#   filter(classe_age != "00-19") %>%
+#   group_by(epci) %>%
+#   summarise(cumu_periode = sum(as.numeric(taux_1_inj))) %>%
+#   ungroup()
+```
+
+```{r, echo = F, message = F, warning = F}
+fig = data %>%
+  filter(week == 33) %>%
+  arrange(OR) %>%
+  mutate(pos2 = row_number()) %>%
+  select(Variable, pos) %>%
+  inner_join(data) %>%
+  plot_ly(
+    x = ~pos,
+    y = ~`max_OR-inv_OR`,
+    size = ~-log10(p),
+    color = ~theme,
+    frame = ~week,
+    text = ~Variable,
+    hooverinfo = "text",
+    type = "scatter",
+    mode = "markers"
+  )
+fig
+```
+
+```{r, echo = F, message = F, warning = F}
+fig = data %>%
+  filter(week == 27) %>%
+  arrange(OR) %>%
+  mutate(asc_OR = row_number()) %>%
+  select(Variable, asc_OR) %>%
+  inner_join(data) %>%
+  plot_ly(
+    x = ~asc_OR,
+    y = ~`max_OR-inv_OR`,
+    size = ~-log10(p),
+    color = ~theme,
+    frame = ~week,
+    text = ~Variable,
+    hooverinfo = "text",
+    type = "scatter",
+    mode = "markers"
+  )
+fig
+```
+
+## 65 - 74 ans
+
+```{r, echo = F, message = F, warning = F}
+data = NULL
+for (i in 2:33){
+  data = bind_rows(
+    data,
+    make_data_covid(i, classe_age = "65-74") %>%
+      arrange(theme, id) %>%
+      mutate (pos = row_number(),
+              week = i)
+  )
+}
+
+# test = read_csv2(url("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-22&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B")) %>%
+#   filter(classe_age != "00-19") %>%
+#   group_by(epci) %>%
+#   summarise(cumu_periode = sum(as.numeric(taux_1_inj))) %>%
+#   ungroup()
+```
+
+```{r, echo = F, message = F, warning = F}
+fig = data %>%
+  filter(week == 33) %>%
+  arrange(OR) %>%
+  mutate(pos2 = row_number()) %>%
+  select(Variable, pos) %>%
+  inner_join(data) %>%
+  plot_ly(
+    x = ~pos,
+    y = ~`max_OR-inv_OR`,
+    size = ~-log10(p),
+    color = ~theme,
+    frame = ~week,
+    text = ~Variable,
+    hooverinfo = "text",
+    type = "scatter",
+    mode = "markers"
+  )
+fig
+```
+
+```{r, echo = F, message = F, warning = F}
+fig = data %>%
+  filter(week == 27) %>%
+  arrange(OR) %>%
+  mutate(asc_OR = row_number()) %>%
+  select(Variable, asc_OR) %>%
+  inner_join(data) %>%
+  plot_ly(
+    x = ~asc_OR,
+    y = ~`max_OR-inv_OR`,
+    size = ~-log10(p),
+    color = ~theme,
+    frame = ~week,
+    text = ~Variable,
+    hooverinfo = "text",
+    type = "scatter",
+    mode = "markers"
+  )
+fig
+```
+
+## 75 ans et plus
+
+```{r, echo = F, message = F, warning = F}
+data = NULL
+for (i in 2:33){
+  data = bind_rows(
+    data,
+    make_data_covid(i, classe_age = "75+et+%2B") %>%
+      arrange(theme, id) %>%
+      mutate (pos = row_number(),
+              week = i)
+  )
+}
+
+# test = read_csv2(url("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-22&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B")) %>%
+#   filter(classe_age != "00-19") %>%
+#   group_by(epci) %>%
+#   summarise(cumu_periode = sum(as.numeric(taux_1_inj))) %>%
+#   ungroup()
+```
+
+```{r, echo = F, message = F, warning = F}
+fig = data %>%
+  filter(week == 33) %>%
+  arrange(OR) %>%
+  mutate(pos2 = row_number()) %>%
+  select(Variable, pos) %>%
+  inner_join(data) %>%
+  plot_ly(
+    x = ~pos,
+    y = ~`max_OR-inv_OR`,
+    size = ~-log10(p),
+    color = ~theme,
+    frame = ~week,
+    text = ~Variable,
+    hooverinfo = "text",
+    type = "scatter",
+    mode = "markers"
+  )
+fig
+```
+
+```{r, echo = F, message = F, warning = F}
+fig = data %>%
+  filter(week == 27) %>%
+  arrange(OR) %>%
+  mutate(asc_OR = row_number()) %>%
+  select(Variable, asc_OR) %>%
+  inner_join(data) %>%
+  plot_ly(
+    x = ~asc_OR,
+    y = ~`max_OR-inv_OR`,
+    size = ~-log10(p),
+    color = ~theme,
+    frame = ~week,
+    text = ~Variable,
+    hooverinfo = "text",
+    type = "scatter",
+    mode = "markers"
+  )
+fig
+```
+
