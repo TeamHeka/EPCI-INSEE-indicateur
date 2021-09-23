@@ -8,6 +8,8 @@ output:
     toc_float: true
 ---
 
+
+
 ```{r, echo = F, message = F, warning = F}
 library(tidyverse)
 library(plotly)
@@ -18,6 +20,8 @@ library(rAmCharts)
 ```
 
 ```{r, echo = F, message = F, warning = F}
+last_week = 35
+
 LOG_fact = read_csv("data/LOG_fact.csv", col_type = list(.default = col_factor()))
 EMP_fact = read_csv("data/EMP_fact.csv", col_type = list(.default = col_factor()))
 ACT_fact = read_csv("data/ACT_fact.csv", col_type = list(.default = col_factor()))
@@ -506,24 +510,24 @@ make_data_covid_cumul = function(wks, variable = "taux_1_inj", classe_age = "tou
   wk1 = wks[1] - 1
   
   if (wk1/10 <1){
-      wk1 = paste0("0", wk1)
+    wk1 = paste0("0", wk1)
   }
   
   vacc_com1 = read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-commune/download/?format=csv&refine.semaine_injection=2021-", wk1, "&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
-      mutate(codgeo = as.factor(commune_residence)) %>%
-      mutate(taux_cumu_1_inj = as.numeric(taux_cumu_1_inj))
-    
-    vacc1 = read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-", wk1, "&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
-      mutate(codgeo = as.factor(epci)) %>%
-      mutate(taux_cumu_1_inj = as.numeric(taux_cumu_1_inj)) %>%
-      plyr::rbind.fill(vacc_com1) %>%
-      filter(!(classe_age %in% c("00-19", "TOUT_AGE"))) %>%
-      select(codgeo, classe_age, population_carto, effectif_cumu_1_inj) %>%
-      group_by(codgeo) %>%
-      summarise(population_carto = sum(population_carto),
-                effectif_cumu_1_inj = sum(effectif_cumu_1_inj)) %>%
-      ungroup()
-    
+    mutate(codgeo = as.factor(commune_residence)) %>%
+    mutate(taux_cumu_1_inj = as.numeric(taux_cumu_1_inj))
+  
+  vacc1 = read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-", wk1, "&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
+    mutate(codgeo = as.factor(epci)) %>%
+    mutate(taux_cumu_1_inj = as.numeric(taux_cumu_1_inj)) %>%
+    plyr::rbind.fill(vacc_com1) %>%
+    filter(!(classe_age %in% c("00-19", "TOUT_AGE"))) %>%
+    select(codgeo, classe_age, population_carto, effectif_cumu_1_inj) %>%
+    group_by(codgeo) %>%
+    summarise(population_carto = sum(population_carto),
+              effectif_cumu_1_inj = sum(effectif_cumu_1_inj)) %>%
+    ungroup()
+  
   
   for (wk in wks){
     if (wk/10 <1){
@@ -545,14 +549,14 @@ make_data_covid_cumul = function(wks, variable = "taux_1_inj", classe_age = "tou
     
     vacc_tot = plyr::rbind.fill(vacc_tot, vacc)
   }
-
-    vacc_agg = vacc_tot %>%
-      select(codgeo, classe_age, population_carto, effectif_1_inj) %>%
-      filter(!(classe_age %in% c("00-19", "TOUT_AGE"))) %>%
-      group_by(codgeo) %>%
-      summarise(effectif_1_inj = sum(effectif_1_inj, na.rm = T)) %>%
-      ungroup()
-    
+  
+  vacc_agg = vacc_tot %>%
+    select(codgeo, classe_age, population_carto, effectif_1_inj) %>%
+    filter(!(classe_age %in% c("00-19", "TOUT_AGE"))) %>%
+    group_by(codgeo) %>%
+    summarise(effectif_1_inj = sum(effectif_1_inj, na.rm = T)) %>%
+    ungroup()
+  
   vacc = vacc_agg %>%
     inner_join(vacc1) %>%
     mutate(taux_1_inj = effectif_1_inj/(population_carto - effectif_cumu_1_inj))
@@ -1054,12 +1058,35 @@ read.csv2("data/IMM_brut.csv") %>%
 
 ```{r, echo = F, message = F, warning = F}
 read.csv("data/GEO_brut.csv") %>%
-  select(-c(codgeo, taux_cumu_1_inj, X, SEXE.AGE3_B_POP_ENS_ENS, lat01, lon01, superficie)) %>%
+  select(-c(codgeo, taux_cumu_1_inj, SEXE.AGE3_B_POP_ENS_ENS, lat01, lon01, superficie)) %>%
+  mutate(latitude = 41+35/60+30/3600+(51+2/60+18/3600-41-35/60-30/3600)*(latitude-6069383)/(7101616-6069383),
+         longitude = -4-38/60-16/3600+(9+31/60+15/3600+4+38/60+16/3600)*(longitude+4+38/60+16/3600)/(1232484-131265)) %>%
   desctable(stats = list("N" = length, "Med" = median, "IQR" = IQR)) %>%
   pander()
 ```
 
 # Manhattan
+
+## Dates clés de la vaccination en France
+
+- **6 février 2021 (S05)** : La vaccination a été ouverte à l'ensemble des professionnels de santé et du secteur médico-social, aux aides à domicile intervenant auprès de personnes vulnérables et aux pompiers quel que soit leur âge.
+- **19 février 2021 (S07)** : La vaccination est ouverte aux personnes de 50 à 64 ans inclus à risque de formes graves de Covid-19, comme par exemple le diabète ou l'obésité, qui peuvent être vaccinées dans leurs structures de soins, notamment à l'hôpital. Depuis le 25 février 2021, elles peuvent se faire vacciner directement chez un médecin de ville.
+- **2 mars 2021 (S09)** : les personnes âgées de plus de 75 ans peuvent être vaccinées par le vaccin AstraZeneca chez un médecin de ville (spécialiste ou médecin généraliste).
+- **15 mars 2021 (S11)** : la vaccination en pharmacie est possible pour les personnes de plus de 50 ans atteintes de comorbidités. Les patients éligibles au vaccin AstraZeneca n'auront pas besoin d'une prescription médicale et pourront se rendre directement en officine.
+- **25 mars 2021 (S12)** : toutes les personnes âgées de 70 ans et plus peuvent obtenir des rendez-vous en centre de vaccination pour y recevoir le vaccin Moderna ou Pfizer-BioNtech à partir du samedi 27 mars 2021. Celles qui sont éligibles au vaccin AstraZeneca peuvent être vaccinées chez un pharmacien ou un médecin de ville (médecin généraliste, médecin spécialiste, ou médecin du travail).
+- **12 avril 2021 (S15)** : les personnes de 55 ans et plus quel que soit leur lieu de vie et leur état de santé (avec ou sans comorbidités) peuvent être vaccinées chez un pharmacien, un infirmier ou un médecin de ville (médecin généraliste, médecin spécialiste, ou médecin du travail) avec le vaccin Vaxzevria (AstraZeneca).
+- **16 avril 2021 (S15)** : les personnes de 60 à 69 ans et plus bénéficient de l'extension de la campagne vaccinale par Pfizer et Moderna (en centre de vaccination).
+- **1er mai 2021 (S17)** : les personnes de plus de 18 à 49 ans souffrant de comorbidité(s) peuvent être vaccinées en centre de vaccination par Pfizer et Moderna, sur déclaration de leur(s) comorbidité(s) et sans avoir à présenter une prescription médicale.
+- **10 mai 2021 (S19)** : les personnes de 50 ans et plus quel que soit leur lieu de vie et leur état de santé (avec ou sans comorbidités) peuvent être vaccinées en centre de vaccination par Pfizer et Moderna.
+- **12 mai 2021 (S19)** : toutes les personnes de 18 à 49 ans peuvent prendre rendez-vous pour se faire vacciner en centre de vaccination pour des injections avec les vaccins Pfizer-BioNTech ou Moderna ayant lieu le jour même ou le lendemain.
+- **27 mai 2021 (S21)** : toutes les personnes majeures peuvent prendre rendez-vous pour se faire vacciner en centre de vaccination pour des injections avec les vaccins Pfizer-BioNTech ou Moderna à compter du 31 mai 2021.
+- **15 juin 2021 (S24)** : les 12 à 17 ans inclus ans peuvent se faire vacciner avec le vaccin Pfizer-BioNTech en centre de vaccination. Le 24 juillet 2021, l'Agence européenne du médicament (EMA) a délivré une autorisation du vaccin Moderna sur lequel la HAS a rendu un avis favorable le 28 juillet.
+- **12 juillet 2021 (S28)** : annonce du président le la république concernant la mise en place du pass sanitaire.
+- **9 août 2021 (S32)** : mise en place de l'obligation du passe sanitaire dans les lieux concernés.
+- **1er septembre 2021 (S35)** : une campagne de rappel est mise en place pour stimuler le système immunitaire des plus vulnérables : les résidents d'EHPAD et d'USLD, les personnes de 65 ans et plus vivant à domicile, les personnes souffrant de comorbidité(s), les personnes atteintes de pathologies à haut risque de forme grave, les personnes ayant été vaccinées avec le vaccin Janssen.
+- **15 septembre 2021 (S37)** : l'obligation vaccinale concernerait tous les personnels des établissements de santé, établissements d'hébergement pour personnes âgées dépendantes (Ehpad) et établissements pour personnes en situation de handicap et tous les professionnels ou les bénévoles en contact avec des personnes âgées ou vulnérables, y compris à domicile. Cette mesure a fait l'objet d'un projet de loi relatif à la gestion de la crise sanitaire examiné par le Parlement depuis le 20 juillet 2021.
+
+## Protocole
 
 Pour construire les graphiques suivants, chaque variable a été dichotomisée par rapport à la médiane (`1` pour supérieur à la médiane et `0` pour inférieur à la médiane).
 
@@ -1073,13 +1100,16 @@ L'axe des ordonnées représente le maximum entre l'odds ratio et son inverse. A
 
 La grosseur de chaque point est proportionnelle à $-\log_{10}(p)$.
 
-Puis pour connaitre l'influebce de chaque variable, on ne trace uniquement l'odds ratio et enfin son inverse.
+Puis pour connaître l'influence de chaque variable, on ne trace uniquement l'odds ratio et enfin son inverse.
+
+Une variable tracée avec un triangle pointe en gaut indique que plus la valeur de la variable est élevée, plus le territoire est vacciné.
+À l'inverse, si la variable est symbolisée avec un triangle pointe en bas, une valeur élevée de la variable indique un territoire moins vacciné.
 
 ## Données cumulées
 
 ```{r, echo = F, message = F, warning = F}
 data = NULL
-for (i in 2:34){
+for (i in 2:last_week){
   data = bind_rows(
     data,
     make_data_covid(i) %>%
@@ -1091,12 +1121,15 @@ for (i in 2:34){
 ```
 
 ```{r, echo = F, message = F, warning = F}
+ylim = max(data$`max_OR-inv_OR`[is.finite(data$`max_OR-inv_OR`)], na.rm = T)
+
 fig = data %>%
-  filter(week == 33) %>%
-  arrange(OR) %>%
-  mutate(pos2 = row_number()) %>%
-  select(Variable, pos) %>%
-  inner_join(data) %>%
+  mutate(shape = if_else(OR > 1, 0, 1)) %>%
+  # filter(week == 33) %>%
+  # arrange(OR) %>%
+  # mutate(pos2 = row_number()) %>%
+  # select(Variable, pos) %>%
+  # inner_join(data) %>%
   plot_ly(
     x = ~pos,
     y = ~`max_OR-inv_OR`,
@@ -1104,32 +1137,16 @@ fig = data %>%
     color = ~theme,
     frame = ~week,
     text = ~Variable,
+    alpha = 0.75,
+    symbol = ~shape,
+    symbols = c(220, 219),
     hooverinfo = "text",
     type = "scatter",
     mode = "markers"
-  )
-fig
-```
-
-
-```{r, echo = F, message = F, warning = F}
-fig = data %>%
-  filter(week == 27) %>%
-  arrange(OR) %>%
-  mutate(asc_OR = row_number()) %>%
-  select(Variable, asc_OR) %>%
-  inner_join(data) %>%
-  plot_ly(
-    x = ~asc_OR,
-    y = ~`max_OR-inv_OR`,
-    size = ~-log10(p),
-    color = ~theme,
-    frame = ~week,
-    text = ~Variable,
-    hooverinfo = "text",
-    type = "scatter",
-    mode = "markers"
-  )
+  ) %>%
+  layout(
+    xaxis = list(title = "Variable"),
+    yaxis = list(title = "max(OR, 1/OR)", range = list(1, ylim)))
 fig
 ```
 
@@ -1137,7 +1154,7 @@ fig
 
 ```{r, echo = F, message = F, warning = F}
 data = NULL
-for (i in 2:34){
+for (i in 2:last_week){
   data = bind_rows(
     data,
     make_data_covid(i, variable = "taux_1_inj") %>%
@@ -1149,12 +1166,15 @@ for (i in 2:34){
 ```
 
 ```{r, echo = F, message = F, warning = F}
+ylim = max(data$`max_OR-inv_OR`[is.finite(data$`max_OR-inv_OR`)], na.rm = T)
+
 fig = data %>%
-  filter(week == 33) %>%
-  arrange(OR) %>%
-  mutate(pos2 = row_number()) %>%
-  select(Variable, pos) %>%
-  inner_join(data) %>%
+  mutate(shape = if_else(OR > 1, 0, 1)) %>%
+  # filter(week == 33) %>%
+  # arrange(OR) %>%
+  # mutate(pos2 = row_number()) %>%
+  # select(Variable, pos) %>%
+  # inner_join(data) %>%
   plot_ly(
     x = ~pos,
     y = ~`max_OR-inv_OR`,
@@ -1162,41 +1182,57 @@ fig = data %>%
     color = ~theme,
     frame = ~week,
     text = ~Variable,
+    alpha = 0.75,
+    symbol = ~shape,
+    symbols = c(220, 219),
     hooverinfo = "text",
     type = "scatter",
     mode = "markers"
-  )
+  ) %>%
+  layout(
+    xaxis = list(title = "Variable"),
+    yaxis = list(title = "max(OR, 1/OR)", range = list(1, ylim)))
 fig
 ```
 
-```{r, echo = F, message = F, warning = F}
+```{r, echo = F, message = F, warning = F, eval = F}
+ylim = max(data$`max_OR-inv_OR`[is.finite(data$`max_OR-inv_OR`)], na.rm = T)
+
 fig = data %>%
-  filter(week == 27) %>%
-  arrange(OR) %>%
-  mutate(asc_OR = row_number()) %>%
-  select(Variable, asc_OR) %>%
-  inner_join(data) %>%
+  mutate(shape = if_else(OR > 1, 220, 219)) %>%
+  # filter(week == 33) %>%
+  # arrange(OR) %>%
+  # mutate(pos2 = row_number()) %>%
+  # select(Variable, pos) %>%
+  # inner_join(data) %>%
   plot_ly(
-    x = ~asc_OR,
+    x = ~pos,
     y = ~`max_OR-inv_OR`,
     size = ~-log10(p),
     color = ~theme,
     frame = ~week,
     text = ~Variable,
+    symbol = ~shape,
+    symbols = c(220, 119),
     hooverinfo = "text",
     type = "scatter",
     mode = "markers"
-  )
+  ) %>%
+  layout(scene = list(
+    xaxis = list(title = "Variable"),
+    yaxis = list(title = "max(OR, 1/OR)", range = list(1, ylim))))
 fig
 ```
 
-# Par classe d'âge : données cumulées
+# Par classe d'âge
 
-## 0 - 19 ans
+## 0 - 19 ans 
+
+### données à la semaine
 
 ```{r, echo = F, message = F, warning = F}
 data = NULL
-for (i in 18:34){
+for (i in 18:last_week){
   data = bind_rows(
     data,
     make_data_covid(i, variable = "taux_1_inj", classe_age = "00-19") %>%
@@ -1214,12 +1250,15 @@ for (i in 18:34){
 ```
 
 ```{r, echo = F, message = F, warning = F}
+ylim = max(data$`max_OR-inv_OR`[is.finite(data$`max_OR-inv_OR`)], na.rm = T)
+
 fig = data %>%
-  filter(week == 33) %>%
-  arrange(OR) %>%
-  mutate(pos2 = row_number()) %>%
-  select(Variable, pos) %>%
-  inner_join(data) %>%
+  mutate(shape = if_else(OR > 1, 0, 1)) %>%
+  # filter(week == 33) %>%
+  # arrange(OR) %>%
+  # mutate(pos2 = row_number()) %>%
+  # select(Variable, pos) %>%
+  # inner_join(data) %>%
   plot_ly(
     x = ~pos,
     y = ~`max_OR-inv_OR`,
@@ -1227,39 +1266,71 @@ fig = data %>%
     color = ~theme,
     frame = ~week,
     text = ~Variable,
+    alpha = 0.75,
+    symbol = ~shape,
+    symbols = c(220, 219),
     hooverinfo = "text",
     type = "scatter",
     mode = "markers"
-  )
+  ) %>%
+  layout(
+    xaxis = list(title = "Variable"),
+    yaxis = list(title = "max(OR, 1/OR)", range = list(1, ylim)))
 fig
 ```
 
+### données cumulées
+
 ```{r, echo = F, message = F, warning = F}
+data = NULL
+for (i in 18:last_week){
+  data = bind_rows(
+    data,
+    make_data_covid(i, classe_age = "00-19") %>%
+      arrange(theme, id) %>%
+      mutate (pos = row_number(),
+              week = i)
+  )
+}
+```
+
+```{r, echo = F, message = F, warning = F}
+ylim = max(data$`max_OR-inv_OR`[is.finite(data$`max_OR-inv_OR`)], na.rm = T)
+
 fig = data %>%
-  filter(week == 27) %>%
-  arrange(OR) %>%
-  mutate(asc_OR = row_number()) %>%
-  select(Variable, asc_OR) %>%
-  inner_join(data) %>%
+  mutate(shape = if_else(OR > 1, 0, 1)) %>%
+  # filter(week == 33) %>%
+  # arrange(OR) %>%
+  # mutate(pos2 = row_number()) %>%
+  # select(Variable, pos) %>%
+  # inner_join(data) %>%
   plot_ly(
-    x = ~asc_OR,
+    x = ~pos,
     y = ~`max_OR-inv_OR`,
     size = ~-log10(p),
     color = ~theme,
     frame = ~week,
     text = ~Variable,
+    alpha = 0.75,
+    symbol = ~shape,
+    symbols = c(220, 219),
     hooverinfo = "text",
     type = "scatter",
     mode = "markers"
-  )
+  ) %>%
+  layout(
+    xaxis = list(title = "Variable"),
+    yaxis = list(title = "max(OR, 1/OR)", range = list(1, ylim)))
 fig
 ```
 
 ## 20 - 39 ans
 
+### données à la semaine
+
 ```{r, echo = F, message = F, warning = F}
 data = NULL
-for (i in 2:34){
+for (i in 2:last_week){
   data = bind_rows(
     data,
     make_data_covid(i, variable = "taux_1_inj", classe_age = "20-39") %>%
@@ -1277,12 +1348,15 @@ for (i in 2:34){
 ```
 
 ```{r, echo = F, message = F, warning = F}
+ylim = max(data$`max_OR-inv_OR`[is.finite(data$`max_OR-inv_OR`)], na.rm = T)
+
 fig = data %>%
-  filter(week == 33) %>%
-  arrange(OR) %>%
-  mutate(pos2 = row_number()) %>%
-  select(Variable, pos) %>%
-  inner_join(data) %>%
+  mutate(shape = if_else(OR > 1, 0, 1)) %>%
+  # filter(week == 33) %>%
+  # arrange(OR) %>%
+  # mutate(pos2 = row_number()) %>%
+  # select(Variable, pos) %>%
+  # inner_join(data) %>%
   plot_ly(
     x = ~pos,
     y = ~`max_OR-inv_OR`,
@@ -1290,39 +1364,71 @@ fig = data %>%
     color = ~theme,
     frame = ~week,
     text = ~Variable,
+    alpha = 0.75,
+    symbol = ~shape,
+    symbols = c(220, 219),
     hooverinfo = "text",
     type = "scatter",
     mode = "markers"
-  )
+  ) %>%
+  layout(
+    xaxis = list(title = "Variable"),
+    yaxis = list(title = "max(OR, 1/OR)", range = list(1, ylim)))
 fig
 ```
 
+### données cumulées
+
 ```{r, echo = F, message = F, warning = F}
+data = NULL
+for (i in 2:last_week){
+  data = bind_rows(
+    data,
+    make_data_covid(i, classe_age = "20-39") %>%
+      arrange(theme, id) %>%
+      mutate (pos = row_number(),
+              week = i)
+  )
+}
+```
+
+```{r, echo = F, message = F, warning = F}
+ylim = max(data$`max_OR-inv_OR`[is.finite(data$`max_OR-inv_OR`)], na.rm = T)
+
 fig = data %>%
-  filter(week == 27) %>%
-  arrange(OR) %>%
-  mutate(asc_OR = row_number()) %>%
-  select(Variable, asc_OR) %>%
-  inner_join(data) %>%
+  mutate(shape = if_else(OR > 1, 0, 1)) %>%
+  # filter(week == 33) %>%
+  # arrange(OR) %>%
+  # mutate(pos2 = row_number()) %>%
+  # select(Variable, pos) %>%
+  # inner_join(data) %>%
   plot_ly(
-    x = ~asc_OR,
+    x = ~pos,
     y = ~`max_OR-inv_OR`,
     size = ~-log10(p),
     color = ~theme,
     frame = ~week,
     text = ~Variable,
+    alpha = 0.75,
+    symbol = ~shape,
+    symbols = c(220, 219),
     hooverinfo = "text",
     type = "scatter",
     mode = "markers"
-  )
+  ) %>%
+  layout(
+    xaxis = list(title = "Variable"),
+    yaxis = list(title = "max(OR, 1/OR)", range = list(1, ylim)))
 fig
 ```
 
 ## 40 - 54 ans
 
+### Données à la semaine
+
 ```{r, echo = F, message = F, warning = F}
 data = NULL
-for (i in 2:34){
+for (i in 2:last_week){
   data = bind_rows(
     data,
     make_data_covid(i, variable = "taux_1_inj", classe_age = "40-54") %>%
@@ -1340,12 +1446,15 @@ for (i in 2:34){
 ```
 
 ```{r, echo = F, message = F, warning = F}
+ylim = max(data$`max_OR-inv_OR`[is.finite(data$`max_OR-inv_OR`)], na.rm = T)
+
 fig = data %>%
-  filter(week == 33) %>%
-  arrange(OR) %>%
-  mutate(pos2 = row_number()) %>%
-  select(Variable, pos) %>%
-  inner_join(data) %>%
+  mutate(shape = if_else(OR > 1, 0, 1)) %>%
+  # filter(week == 33) %>%
+  # arrange(OR) %>%
+  # mutate(pos2 = row_number()) %>%
+  # select(Variable, pos) %>%
+  # inner_join(data) %>%
   plot_ly(
     x = ~pos,
     y = ~`max_OR-inv_OR`,
@@ -1353,39 +1462,71 @@ fig = data %>%
     color = ~theme,
     frame = ~week,
     text = ~Variable,
+    alpha = 0.75,
+    symbol = ~shape,
+    symbols = c(220, 219),
     hooverinfo = "text",
     type = "scatter",
     mode = "markers"
-  )
+  ) %>%
+  layout(
+    xaxis = list(title = "Variable"),
+    yaxis = list(title = "max(OR, 1/OR)", range = list(1, ylim)))
 fig
 ```
 
+### Données cumulées
+
 ```{r, echo = F, message = F, warning = F}
+data = NULL
+for (i in 2:last_week){
+  data = bind_rows(
+    data,
+    make_data_covid(i, classe_age = "20-39") %>%
+      arrange(theme, id) %>%
+      mutate (pos = row_number(),
+              week = i)
+  )
+}
+```
+
+```{r, echo = F, message = F, warning = F}
+ylim = max(data$`max_OR-inv_OR`[is.finite(data$`max_OR-inv_OR`)], na.rm = T)
+
 fig = data %>%
-  filter(week == 27) %>%
-  arrange(OR) %>%
-  mutate(asc_OR = row_number()) %>%
-  select(Variable, asc_OR) %>%
-  inner_join(data) %>%
+  mutate(shape = if_else(OR > 1, 0, 1)) %>%
+  # filter(week == 33) %>%
+  # arrange(OR) %>%
+  # mutate(pos2 = row_number()) %>%
+  # select(Variable, pos) %>%
+  # inner_join(data) %>%
   plot_ly(
-    x = ~asc_OR,
+    x = ~pos,
     y = ~`max_OR-inv_OR`,
     size = ~-log10(p),
     color = ~theme,
     frame = ~week,
     text = ~Variable,
+    alpha = 0.75,
+    symbol = ~shape,
+    symbols = c(220, 219),
     hooverinfo = "text",
     type = "scatter",
     mode = "markers"
-  )
+  ) %>%
+  layout(
+    xaxis = list(title = "Variable"),
+    yaxis = list(title = "max(OR, 1/OR)", range = list(1, ylim)))
 fig
 ```
 
 ## 55 - 64 ans
 
+### Données à la semaine
+
 ```{r, echo = F, message = F, warning = F}
 data = NULL
-for (i in 2:34){
+for (i in 2:last_week){
   data = bind_rows(
     data,
     make_data_covid(i, variable = "taux_1_inj", classe_age = "55-64") %>%
@@ -1403,12 +1544,15 @@ for (i in 2:34){
 ```
 
 ```{r, echo = F, message = F, warning = F}
+ylim = max(data$`max_OR-inv_OR`[is.finite(data$`max_OR-inv_OR`)], na.rm = T)
+
 fig = data %>%
-  filter(week == 33) %>%
-  arrange(OR) %>%
-  mutate(pos2 = row_number()) %>%
-  select(Variable, pos) %>%
-  inner_join(data) %>%
+  mutate(shape = if_else(OR > 1, 0, 1)) %>%
+  # filter(week == 33) %>%
+  # arrange(OR) %>%
+  # mutate(pos2 = row_number()) %>%
+  # select(Variable, pos) %>%
+  # inner_join(data) %>%
   plot_ly(
     x = ~pos,
     y = ~`max_OR-inv_OR`,
@@ -1416,39 +1560,71 @@ fig = data %>%
     color = ~theme,
     frame = ~week,
     text = ~Variable,
+    alpha = 0.75,
+    symbol = ~shape,
+    symbols = c(220, 219),
     hooverinfo = "text",
     type = "scatter",
     mode = "markers"
-  )
+  ) %>%
+  layout(
+    xaxis = list(title = "Variable"),
+    yaxis = list(title = "max(OR, 1/OR)", range = list(1, ylim)))
 fig
 ```
 
+### Données cumulées
+
 ```{r, echo = F, message = F, warning = F}
+data = NULL
+for (i in 2:last_week){
+  data = bind_rows(
+    data,
+    make_data_covid(i, classe_age = "20-39") %>%
+      arrange(theme, id) %>%
+      mutate (pos = row_number(),
+              week = i)
+  )
+}
+```
+
+```{r, echo = F, message = F, warning = F}
+ylim = max(data$`max_OR-inv_OR`[is.finite(data$`max_OR-inv_OR`)], na.rm = T)
+
 fig = data %>%
-  filter(week == 27) %>%
-  arrange(OR) %>%
-  mutate(asc_OR = row_number()) %>%
-  select(Variable, asc_OR) %>%
-  inner_join(data) %>%
+  mutate(shape = if_else(OR > 1, 0, 1)) %>%
+  # filter(week == 33) %>%
+  # arrange(OR) %>%
+  # mutate(pos2 = row_number()) %>%
+  # select(Variable, pos) %>%
+  # inner_join(data) %>%
   plot_ly(
-    x = ~asc_OR,
+    x = ~pos,
     y = ~`max_OR-inv_OR`,
     size = ~-log10(p),
     color = ~theme,
     frame = ~week,
     text = ~Variable,
+    alpha = 0.75,
+    symbol = ~shape,
+    symbols = c(220, 219),
     hooverinfo = "text",
     type = "scatter",
     mode = "markers"
-  )
+  ) %>%
+  layout(
+    xaxis = list(title = "Variable"),
+    yaxis = list(title = "max(OR, 1/OR)", range = list(1, ylim)))
 fig
 ```
 
 ## 65 - 74 ans
 
+### Données à la semaine
+
 ```{r, echo = F, message = F, warning = F}
 data = NULL
-for (i in 2:34){
+for (i in 2:last_week){
   data = bind_rows(
     data,
     make_data_covid(i, variable = "taux_1_inj", classe_age = "65-74") %>%
@@ -1466,12 +1642,15 @@ for (i in 2:34){
 ```
 
 ```{r, echo = F, message = F, warning = F}
+ylim = max(data$`max_OR-inv_OR`[is.finite(data$`max_OR-inv_OR`)], na.rm = T)
+
 fig = data %>%
-  filter(week == 33) %>%
-  arrange(OR) %>%
-  mutate(pos2 = row_number()) %>%
-  select(Variable, pos) %>%
-  inner_join(data) %>%
+  mutate(shape = if_else(OR > 1, 0, 1)) %>%
+  # filter(week == 33) %>%
+  # arrange(OR) %>%
+  # mutate(pos2 = row_number()) %>%
+  # select(Variable, pos) %>%
+  # inner_join(data) %>%
   plot_ly(
     x = ~pos,
     y = ~`max_OR-inv_OR`,
@@ -1479,39 +1658,71 @@ fig = data %>%
     color = ~theme,
     frame = ~week,
     text = ~Variable,
+    alpha = 0.75,
+    symbol = ~shape,
+    symbols = c(220, 219),
     hooverinfo = "text",
     type = "scatter",
     mode = "markers"
-  )
+  ) %>%
+  layout(
+    xaxis = list(title = "Variable"),
+    yaxis = list(title = "max(OR, 1/OR)", range = list(1, ylim)))
 fig
 ```
 
+### Données cumulées
+
 ```{r, echo = F, message = F, warning = F}
+data = NULL
+for (i in 2:last_week){
+  data = bind_rows(
+    data,
+    make_data_covid(i, classe_age = "20-39") %>%
+      arrange(theme, id) %>%
+      mutate (pos = row_number(),
+              week = i)
+  )
+}
+```
+
+```{r, echo = F, message = F, warning = F}
+ylim = max(data$`max_OR-inv_OR`[is.finite(data$`max_OR-inv_OR`)], na.rm = T)
+
 fig = data %>%
-  filter(week == 27) %>%
-  arrange(OR) %>%
-  mutate(asc_OR = row_number()) %>%
-  select(Variable, asc_OR) %>%
-  inner_join(data) %>%
+  mutate(shape = if_else(OR > 1, 0, 1)) %>%
+  # filter(week == 33) %>%
+  # arrange(OR) %>%
+  # mutate(pos2 = row_number()) %>%
+  # select(Variable, pos) %>%
+  # inner_join(data) %>%
   plot_ly(
-    x = ~asc_OR,
+    x = ~pos,
     y = ~`max_OR-inv_OR`,
     size = ~-log10(p),
     color = ~theme,
     frame = ~week,
     text = ~Variable,
+    alpha = 0.75,
+    symbol = ~shape,
+    symbols = c(220, 219),
     hooverinfo = "text",
     type = "scatter",
     mode = "markers"
-  )
+  ) %>%
+  layout(
+    xaxis = list(title = "Variable"),
+    yaxis = list(title = "max(OR, 1/OR)", range = list(1, ylim)))
 fig
 ```
 
 ## 75 ans et plus
 
+### Données à la semaine
+
 ```{r, echo = F, message = F, warning = F}
 data = NULL
-for (i in 2:34){
+for (i in 2:last_week){
   data = bind_rows(
     data,
     make_data_covid(i, variable = "taux_1_inj", classe_age = "75+et+%2B") %>%
@@ -1529,12 +1740,15 @@ for (i in 2:34){
 ```
 
 ```{r, echo = F, message = F, warning = F}
+ylim = max(data$`max_OR-inv_OR`[is.finite(data$`max_OR-inv_OR`)], na.rm = T)
+
 fig = data %>%
-  filter(week == 33) %>%
-  arrange(OR) %>%
-  mutate(pos2 = row_number()) %>%
-  select(Variable, pos) %>%
-  inner_join(data) %>%
+  mutate(shape = if_else(OR > 1, 0, 1)) %>%
+  # filter(week == 33) %>%
+  # arrange(OR) %>%
+  # mutate(pos2 = row_number()) %>%
+  # select(Variable, pos) %>%
+  # inner_join(data) %>%
   plot_ly(
     x = ~pos,
     y = ~`max_OR-inv_OR`,
@@ -1542,37 +1756,67 @@ fig = data %>%
     color = ~theme,
     frame = ~week,
     text = ~Variable,
+    alpha = 0.75,
+    symbol = ~shape,
+    symbols = c(220, 219),
     hooverinfo = "text",
     type = "scatter",
     mode = "markers"
-  )
+  ) %>%
+  layout(
+    xaxis = list(title = "Variable"),
+    yaxis = list(title = "max(OR, 1/OR)", range = list(1, ylim)))
 fig
 ```
 
+### Données cumulées
+
 ```{r, echo = F, message = F, warning = F}
+data = NULL
+for (i in 2:last_week){
+  data = bind_rows(
+    data,
+    make_data_covid(i, classe_age = "20-39") %>%
+      arrange(theme, id) %>%
+      mutate (pos = row_number(),
+              week = i)
+  )
+}
+```
+
+```{r, echo = F, message = F, warning = F}
+ylim = max(data$`max_OR-inv_OR`[is.finite(data$`max_OR-inv_OR`)], na.rm = T)
+
 fig = data %>%
-  filter(week == 27) %>%
-  arrange(OR) %>%
-  mutate(asc_OR = row_number()) %>%
-  select(Variable, asc_OR) %>%
-  inner_join(data) %>%
+  mutate(shape = if_else(OR > 1, 0, 1)) %>%
+  # filter(week == 33) %>%
+  # arrange(OR) %>%
+  # mutate(pos2 = row_number()) %>%
+  # select(Variable, pos) %>%
+  # inner_join(data) %>%
   plot_ly(
-    x = ~asc_OR,
+    x = ~pos,
     y = ~`max_OR-inv_OR`,
     size = ~-log10(p),
     color = ~theme,
     frame = ~week,
     text = ~Variable,
+    alpha = 0.75,
+    symbol = ~shape,
+    symbols = c(220, 219),
     hooverinfo = "text",
     type = "scatter",
     mode = "markers"
-  )
+  ) %>%
+  layout(
+    xaxis = list(title = "Variable"),
+    yaxis = list(title = "max(OR, 1/OR)", range = list(1, ylim)))
 fig
 ```
 
-# Données données cumulées restreintes de la semaine 22 à 27
+<!-- # Données cumulées restreintes de la semaine 22 à 27 -->
 
-```{r, message = F, echo = F, warning = F}
+```{r, message = F, echo = F, warning = F, eval = F}
 data = make_data_covid_cumul(22:27)
 
 
@@ -1613,9 +1857,9 @@ plotly::ggplotly(p) %>%
   layout(showlegend = FALSE, xaxis = list(tickangle=45))
 ```
 
-# Données données cumulées restreintes de la semaine 28 à 34
+<!-- # Données cumulées restreintes de la semaine 28 à 34 -->
 
-```{r, message = F, echo = F, warning = F}
+```{r, message = F, echo = F, warning = F, eval = F}
 data = make_data_covid_cumul(28:34)
 
 
@@ -1625,12 +1869,13 @@ axis_df = data %>%
   group_by(theme) %>%
   summarise(center = (max(pos) + min(pos)) /2)
 
-p = data %>%
+pl = data %>%
   arrange(theme, id) %>%
-  mutate (pos = row_number()) %>%
+  mutate (pos = row_number(),
+          max = if_else(OR > 1, "OR", "inv(OR)")) %>%
   ggplot() +
-  aes(x = pos, y = -log10(p), variable = Variable, OR = OR) +
-  geom_point(aes(color = theme), alpha = 0.8, size = 1.3) +
+  aes(x = pos, y = `max_OR-inv_OR`, size = -log10(p), variable = Variable, Max = max) +
+  geom_point(aes(color = theme), alpha = 0.5) +
   # scale_color_manual(values = rep(c("grey", "skyblue"), 5)[1:9]) +
   scale_x_continuous(label = axis_df$theme,
                      breaks = axis_df$center, guide = guide_axis(angle = 45)) +
@@ -1652,8 +1897,8 @@ p = data %>%
   labs(title = paste("Manhattan plot on the P-value, weeks 28 to 34"),
        x = "")
 
-plotly::ggplotly(p) %>%
-  layout(showlegend = FALSE, xaxis = list(tickangle=45))
+plotly::ggplotly(pl) %>%
+  layout(showlegend = FALSE, xaxis = list(tickangle=45), yaxis = list(title = "max(OR, 1/OR)"))
 ```
 
 # Couverture vaccinale par tranche d'âge
@@ -1661,7 +1906,8 @@ plotly::ggplotly(p) %>%
 ```{r, message = F, warning = F, echo = F}
 data = read_csv2(url("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-22&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B")) %>%
   plyr::rbind.fill(read_csv2(url("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-27&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
-  plyr::rbind.fill(read_csv2(url("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-34&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B")))
+  plyr::rbind.fill(read_csv2(url("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-34&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
+  plyr::rbind.fill(read_csv2(url("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-31&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B")))
 data = data %>%
   filter(classe_age != "TOUT_AGE") %>%
   group_by(semaine_injection, classe_age) %>%
