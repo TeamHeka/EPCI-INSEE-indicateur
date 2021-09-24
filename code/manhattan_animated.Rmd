@@ -1139,7 +1139,7 @@ fig = data %>%
     text = ~Variable,
     alpha = 0.75,
     symbol = ~shape,
-    symbols = c(220, 219),
+    symbols = c(219, 220),
     hooverinfo = "text",
     type = "scatter",
     mode = "markers"
@@ -1184,7 +1184,7 @@ fig = data %>%
     text = ~Variable,
     alpha = 0.75,
     symbol = ~shape,
-    symbols = c(220, 219),
+    symbols = c(219, 220),
     hooverinfo = "text",
     type = "scatter",
     mode = "markers"
@@ -1213,7 +1213,7 @@ fig = data %>%
     frame = ~week,
     text = ~Variable,
     symbol = ~shape,
-    symbols = c(220, 119),
+    symbols = c(219, 220),
     hooverinfo = "text",
     type = "scatter",
     mode = "markers"
@@ -1268,7 +1268,7 @@ fig = data %>%
     text = ~Variable,
     alpha = 0.75,
     symbol = ~shape,
-    symbols = c(220, 219),
+    symbols = c(219, 220),
     hooverinfo = "text",
     type = "scatter",
     mode = "markers"
@@ -1278,6 +1278,27 @@ fig = data %>%
     yaxis = list(title = "max(OR, 1/OR)", range = list(1, ylim)))
 fig
 ```
+
+<!-- === -->
+```{r, eval = F}
+vacc_com = read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-commune/download/?format=csv&refine.classe_age=", "00-19", "&refine.semaine_injection=2021-", "31", "&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
+      mutate(codgeo = as.factor(commune_residence)) %>%
+      mutate(taux_cumu_1_inj = as.numeric(taux_cumu_1_inj))
+    
+    vacc = read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-", "31", "&refine.classe_age=", "00-19", "&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
+      mutate(codgeo = as.factor(epci)) %>%
+      mutate(taux_cumu_1_inj = as.numeric(taux_cumu_1_inj)) %>%
+      plyr::rbind.fill(vacc_com)
+    
+test = vacc %>% inner_join(LOG_fact %>%
+                      select(codgeo, Overcrowding_rate)) %>%
+  mutate(taux_1_inj = binarisation(as.numeric(taux_1_inj), 0.25))
+
+summary(test$Overcrowding_rate)
+summary(test$taux_1_inj)
+```
+
+<!-- === -->
 
 ### données cumulées
 
@@ -1313,7 +1334,7 @@ fig = data %>%
     text = ~Variable,
     alpha = 0.75,
     symbol = ~shape,
-    symbols = c(220, 219),
+    symbols = c(219, 220),
     hooverinfo = "text",
     type = "scatter",
     mode = "markers"
@@ -1366,7 +1387,7 @@ fig = data %>%
     text = ~Variable,
     alpha = 0.75,
     symbol = ~shape,
-    symbols = c(220, 219),
+    symbols = c(219, 220),
     hooverinfo = "text",
     type = "scatter",
     mode = "markers"
@@ -1411,7 +1432,7 @@ fig = data %>%
     text = ~Variable,
     alpha = 0.75,
     symbol = ~shape,
-    symbols = c(220, 219),
+    symbols = c(219, 220),
     hooverinfo = "text",
     type = "scatter",
     mode = "markers"
@@ -1464,7 +1485,7 @@ fig = data %>%
     text = ~Variable,
     alpha = 0.75,
     symbol = ~shape,
-    symbols = c(220, 219),
+    symbols = c(219, 220),
     hooverinfo = "text",
     type = "scatter",
     mode = "markers"
@@ -1509,7 +1530,7 @@ fig = data %>%
     text = ~Variable,
     alpha = 0.75,
     symbol = ~shape,
-    symbols = c(220, 219),
+    symbols = c(219, 220),
     hooverinfo = "text",
     type = "scatter",
     mode = "markers"
@@ -1562,7 +1583,7 @@ fig = data %>%
     text = ~Variable,
     alpha = 0.75,
     symbol = ~shape,
-    symbols = c(220, 219),
+    symbols = c(219, 220),
     hooverinfo = "text",
     type = "scatter",
     mode = "markers"
@@ -1607,7 +1628,7 @@ fig = data %>%
     text = ~Variable,
     alpha = 0.75,
     symbol = ~shape,
-    symbols = c(220, 219),
+    symbols = c(219, 220),
     hooverinfo = "text",
     type = "scatter",
     mode = "markers"
@@ -1660,7 +1681,7 @@ fig = data %>%
     text = ~Variable,
     alpha = 0.75,
     symbol = ~shape,
-    symbols = c(220, 219),
+    symbols = c(219, 220),
     hooverinfo = "text",
     type = "scatter",
     mode = "markers"
@@ -1705,7 +1726,7 @@ fig = data %>%
     text = ~Variable,
     alpha = 0.75,
     symbol = ~shape,
-    symbols = c(220, 219),
+    symbols = c(219, 220),
     hooverinfo = "text",
     type = "scatter",
     mode = "markers"
@@ -1758,7 +1779,7 @@ fig = data %>%
     text = ~Variable,
     alpha = 0.75,
     symbol = ~shape,
-    symbols = c(220, 219),
+    symbols = c(219, 220),
     hooverinfo = "text",
     type = "scatter",
     mode = "markers"
@@ -1803,7 +1824,7 @@ fig = data %>%
     text = ~Variable,
     alpha = 0.75,
     symbol = ~shape,
-    symbols = c(220, 219),
+    symbols = c(219, 220),
     hooverinfo = "text",
     type = "scatter",
     mode = "markers"
@@ -1923,5 +1944,56 @@ data %>%
   amBarplot(x = "semaine_injection", y = c("00-19", "20-39", "40-54", "55-64", "65-74", "75 et +")) %>%
   # amBarplot(x = "classe_age", y = c("2021-22", "2021-27", "2021-34")) %>%
   amOptions(legend = TRUE, export = TRUE, main = "Couverture vaccinale par tranche d'âge et par semaine")
+```
+
+```{r, eval = F}
+data = NULL
+for (i in 2:last_week){
+  data = bind_rows(
+    data,
+    make_data_covid(i) %>%
+      arrange(theme, id) %>%
+      mutate (pos = row_number(),
+              week = i)
+  )
+}
+```
+
+```{r, eval = F}
+data1 = data
+```
+
+```{r, eval = F}
+data = data1 %>%
+  # filter(Variable %in% c("NO-SE",
+  #                        "Overcrowding_rate",
+  #                        "Interdecile_91_Ratio",
+  #                        "Unemployment_Benef",
+  #                        "Immigrant",
+  #                        "Pop_NoChildFamily_HH")) %>%
+  filter(week >= 22) %>%
+  mutate(ban = as.factor(if_else(week <27, 0, 1)))
+p = data %>%
+  # filter(ban == 0) %>%
+  ggplot() +
+  aes(x = week, y = log(`max_OR-inv_OR`), color = Variable, alpha = 0.5) +
+  geom_point(size = 0.5) +
+  # geom_vline(aes(xintercept = 26.5)) +
+  geom_smooth(aes(fill = ban), size = 0.5, method = "lm", se = F)+
+  theme_bw() +
+  theme(legend.position = "none") 
+# ggplotly(p)
+
+
+
+# plot(data$`max_OR-inv_OR`,
+#      type="n",
+#      ylim=c(00,12),
+#      xlab="Week",
+#      ylab="log(Interdecile_91_Ratio)",
+#      bty="l",
+#      xaxt="n")
+# rect(26.5,0,34,12,col=grey(0.9),border=F)
+# points(log(data$`max_OR-inv_OR`[data$ban==0]),cex=0.7)
 ```
 
