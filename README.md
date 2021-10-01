@@ -5,7 +5,7 @@ FD: Les fichiers de données géographiques sont trop lourds pour github (limite
 
 
 Les données Socio-économiques sont issues de l'INSEE :
-
-source : Insee, RP2018 exploitation principale, géographie au 01/01/2021
+Insee, RP2018 exploitation principale, géographie au 01/01/2021
+Insee, FILO2018 exploitation principale, géographie au 01/01/2021
 
 Les données de vaccination [par commune](https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-commune) ou [par EPCI](https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci) sont issues de l'assurance maladie.
