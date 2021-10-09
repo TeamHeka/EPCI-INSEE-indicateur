@@ -1,119 +1,13 @@
 #### INITIALIZATIONS ####
 
-# rm(list = ls())
+rm(list = ls())
 library("epitools")
 
 library("RColorBrewer")
 
-#### INSEE AND GEO DATA ####
+library("igraph")
 
-# Activity data
-dat.ACT <- read.csv("../data/INSEE_transformed/ACT_brut.csv", sep = ";", dec = ",")
-head(dat.ACT)
-# Remove last column 
-dat.ACT <- dat.ACT[, 1:(ncol(dat.ACT)-1)]
 
-# Employment data
-dat.EMP <- read.csv("../data/INSEE_transformed/EMP_brut.csv", sep = ";", dec = ",")
-head(dat.EMP)
-# Remove last column 
-dat.EMP <- dat.EMP[, 1:(ncol(dat.EMP)-1)]
-
-# Family data
-dat.FAM <- read.csv("../data/INSEE_transformed/FAM_brut.csv", sep = ";", dec = ",")
-head(dat.FAM)
-# Remove last column 
-dat.FAM <- dat.FAM[, 1:(ncol(dat.FAM)-1)]
-
-# Education data
-dat.FOR <- read.csv("../data/INSEE_transformed/FOR_brut.csv", sep = ";", dec = ",")
-head(dat.FOR)
-# Remove last column 
-dat.FOR <- dat.FOR[, 1:(ncol(dat.FOR)-1)]
-
-# Geographic data -- MISSING
-# dat.GEO <- read.csv("../data/INSEE_transformed/GEO_brut.csv", sep = ";", dec = ",")
-#tail(dat.GEO)
-# Remove last column 
-# dat.GEO <- dat.GEO[, -5]
-
-dat.GEO <- read.csv("../data/geographic/exportGeo_EPCI.csv")
-dat.GEO <- dat.GEO[, -1]
-head(dat.GEO)
-names(dat.GEO) <- c("long", "lat", "surf", "codgeo")
-# Compute diagonal values
-dat.GEO$SONE <- dat.GEO$lat + dat.GEO$long
-dat.GEO$SENO <- dat.GEO$lat - dat.GEO$long
-
-# Immigration data 
-dat.IMM <- read.csv("../data/INSEE_transformed/IMM_brut.csv", sep = ";", dec = ",")
-head(dat.IMM)
-# Remove last column 
-dat.IMM <- dat.IMM[, 1:(ncol(dat.IMM)-1)]
-
-# Housing data
-dat.LOG <- read.csv("../data/INSEE_transformed/LOG_brut.csv", sep = ";", dec = ",")
-head(dat.LOG)
-# Remove last column 
-dat.LOG <- dat.LOG[, 1:(ncol(dat.LOG)-1)]
-
-# Population data
-dat.POP <- read.csv("../data/INSEE_transformed/POP_brut.csv", sep = ";", dec = ",")
-head(dat.POP)
-# Remove last column 
-dat.POP <- dat.POP[, 1:(ncol(dat.POP)-1)]
-
-# Income data
-dat.REV <- read.csv("../data/INSEE_transformed/REV_brut.csv", sep = ";", dec = ",")
-head(dat.REV)
-# Remove last column 
-dat.REV <- dat.REV[, 1:(ncol(dat.REV)-1)]
-
-# Types of datasets
-dataTypes <- c("ACT", "EMP", "FAM", "FOR", "GEO", "IMM", "LOG", "POP", "REV")
-
-# Merge all predictor data into a single dataset
-dat.all <- merge(dat.ACT, dat.EMP, all = TRUE, by = "codgeo")
-dat.all <- merge(dat.all, dat.FAM, all = TRUE, by = "codgeo")
-dat.all <- merge(dat.all, dat.FOR, all = TRUE, by = "codgeo")
-dat.all <- merge(dat.all, dat.GEO, all = TRUE, by = "codgeo")
-dat.all <- merge(dat.all, dat.IMM, all = TRUE, by = "codgeo")
-dat.all <- merge(dat.all, dat.LOG, all = TRUE, by = "codgeo")
-dat.all <- merge(dat.all, dat.POP, all = TRUE, by = "codgeo")
-dat.all <- merge(dat.all, dat.REV, all = TRUE, by = "codgeo")
-names(dat.all)
-
-# Get names of all the predictors
-predNames <- names(dat.all)
-predNames <- predNames[-1] # Remove codgeo
-
-# Get classes of all the predictors
-predClass <- c(rep("ACT", ncol(dat.ACT)-1), 
-               rep("EMP", ncol(dat.EMP)-1),
-               rep("FAM", ncol(dat.FAM)-1),
-               rep("FOR", ncol(dat.FOR)-1),
-               rep("GEO", ncol(dat.GEO)-1),
-               rep("IMM", ncol(dat.IMM)-1),
-               rep("LOG", ncol(dat.LOG)-1),
-               rep("POP", ncol(dat.POP)-1),
-               rep("REV", ncol(dat.REV)-1)
-               )
-
-# Save names of variables and classes as dictionnary
-corrPred <- cbind(varName = predNames, varClass = predClass)
-dicPred <- predClass
-names(dicPred) <- predNames
-  
-# Define corresponding colors for the different predictors (by type)
-colClass <- brewer.pal(length(unique(predClass)), name = "Set1")
-names(colClass) <- unique(predClass)
-
-## Load region information for the different EPCI
-regions <- read.csv("../data/geographic/EPCI_composition-communale.csv")
-head(regions)
-# Create dictionnary 
-dic.reg <- regions$REG
-names(dic.reg) <- regions$EPCI
 
 #### VACCINATION DATA ####
 
@@ -134,6 +28,14 @@ unique(vaccEPCI[is.na(vaccEPCI$region), "epci"])
 
 # Exclude DROM using regional code
 vaccEPCI <- vaccEPCI[vaccEPCI$region > 9, ]
+
+# Exclude Metropoles for which we have Communes detail
+epci.PLM <- c(200054781, # Paris
+              200046977, # Lyon
+              200054807  # Marseille
+              )
+vaccEPCI <- vaccEPCI[which(!is.element(vaccEPCI$epci, epci.PLM)), ]
+
 # Rename some fields for future merging
 names(vaccEPCI)[c(3, 4)] <- c("codgeo", "libelle_geo")
 
@@ -163,7 +65,7 @@ quantileConvert <- function(v, q){
   qval <- quantile(x = v, probs = q, na.rm = TRUE)
   
   # Return TRUE/FALSE depending on the position wrt the value, and change into 1/0
-  out <- 1 * (v <= qval)
+  out <- ifelse(v < qval, 0, 1)
   
   out
 }
@@ -195,14 +97,15 @@ computeOR <- function(pred, result, method = "fisher"){
   # Format the output
   out <- c(N = or$data[3, 3], or$measure[2, ], or$p.value[2, ])
   
+  print(or) # For debugging and double-checking
   out
 }
 
 # For debugging
-# clAge <- "00-19"
-# varVacc <- "taux_cumu_termine"
-# varPred <- "Wk_Res_Municipality"
-# thedate <- date1
+clAge <- "TOUT_AGE"
+varVacc <- "taux_cumu_1_inj"
+varPred <- "Overcrowding_rate"
+thedate <- date1
 
 parms <- expand.grid(clAge = sort(unique(vacc$classe_age)), 
                      varVacc = c("taux_cumu_1_inj", "taux_cumu_termine"), 
@@ -240,6 +143,10 @@ for(i in 1:nrow(parms)){
   output[i, ] <- do.call(getOR, parms[i, ])
 }
 
+
+getOR("TOUT_AGE", "taux_cumu_1_inj", "Overcrowding_rate", date1, thrVacc = 0.25, thrPred = 0.5)
+  
+  
 # Add the parameter information
 mm <- cbind(parms, output)
 
@@ -248,18 +155,70 @@ names(mm) <- c("clAge", "varVacc", "varPred", "thedate", "N", "estimate", "lower
 # Save the output
 save(mm, file = "output_2021-10-07.RData")
 
+########----
 
+rm(r1, m1, pp)
+rm(mdl)
+
+getLogReg <- function(varVacc, varPred, thedate){
+  # varPred takes values "taux_cumu_1_inj" or "taux_cumu_termine"
+  
+  # Subset vaccination data; keep all age classes except ALL_AGE
+  r1 <- vacc[vacc$classe_age != "TOUT_AGE" & vacc$date == thedate, ]
+  
+  # Merge with predictor data
+  m1 <- merge(r1, dat.all[, c("codgeo", varPred)], by = "codgeo")
+  
+  # Standardize the predictor
+  pp <- m1[, varPred]
+  m1$pred.std <- (pp - mean(pp, na.rm = TRUE)) / sd(pp, na.rm = TRUE)
+  
+  # Logistic model, with age effect
+  if(varVacc == "taux_cumu_1_inj"){
+    mdl <- glm(cbind(effectif_cumu_1_inj, population_carto - effectif_cumu_1_inj) ~ pred.std + as.factor(classe_age) + pred.std * as.factor(classe_age), family = binomial(link = "logit"), data = m1)
+  }
+  if(varVacc == "taux_cumu_termine"){
+    mdl <- glm(cbind(effectif_cumu_termine, population_carto - effectif_cumu_termine) ~ pred.std + as.factor(classe_age) + pred.std * as.factor(classe_age), family = binomial(link = "logit"), data = m1)
+  }
+
+  # Extract values for pred.std
+  out <- summary(mdl)$coefficients["pred.std", ]
+  out
+}
+
+getLogReg("taux_cumu_1_inj", "Overcrowding_rate", date1)
+
+
+parmsLR <- expand.grid(varVacc = c("taux_cumu_1_inj", "taux_cumu_termine"), 
+                     varPred = predNames, 
+                     thedate = c(date1, date2, date3), stringsAsFactors = FALSE)
+# Compute for all combinations that we want
+# (Takes a few minutes)
+outputLR <- matrix(0, ncol = 4, nrow = nrow(parmsLR))
+for(i in 1:nrow(parmsLR)){
+  outputLR[i, ] <- do.call(getLogReg, parmsLR[i, ])
+}
+
+oLR <- cbind(parmsLR, outputLR)
+oLR
+
+
+save(oLR, file = "output_LR.RData")
+
+#########----------------
 
 #### PLOT ####
+
+load("output_2021-10-07.RData")
 # OR as 1/OR if < 1
 mm$OR <- mm$estimate
 mm[mm$OR < 1, "OR"] <- 1/mm[mm$OR < 1, "OR"]
 
 tmp <- mm[mm$thedate == date1 & mm$varVacc == "taux_cumu_1_inj" & mm$clAge == "TOUT_AGE", ]
 
-plot(tmp$estimate)
+#plot(tmp$estimate)
 
-plot(-log(tmp$midp.exact, 10))
+#plot(-log(tmp$midp.exact, 10))
 
 plot(tmp$OR, -log(tmp$fisher.exact, 10), col = colClass[dicPred[tmp$varPred]], pch = 16)
 legend("topleft", legend = names(colClass), col = colClass, pch = 16)
@@ -267,7 +226,7 @@ legend("topleft", legend = names(colClass), col = colClass, pch = 16)
 tmp[order(tmp$OR, decreasing = TRUE), c("varPred", "OR")]
 
 
-clA <- "40-54"
+clA <- "20-39"
 tmp1 <- mm[mm$thedate == date1 & mm$varVacc == "taux_cumu_1_inj" & mm$clAge == clA, ]
 tmp3 <- mm[mm$thedate == date3 & mm$varVacc == "taux_cumu_1_inj" & mm$clAge == clA, ]
 
@@ -276,9 +235,80 @@ plot(tmp1$OR, tmp3$OR, pch = 16, col = colClass[dicPred[tmp$varPred]],
      xlim = range(c(tmp1$OR, tmp3$OR)), 
      ylim = range(c(tmp1$OR, tmp3$OR)))
 abline(a = 0, b = 1)
+legend("topleft", legend = names(colClass), col = colClass, pch = 16)
 
-head(tmp3[order(tmp3$OR, decreasing = TRUE), c("varPred", "OR", 'estimate')])
+(tmp3[order(tmp3$OR, decreasing = TRUE), c("varPred", "OR", 'estimate'), ])[1:10, ]
 
+
+tmpp1 <- vacc[vacc$date == date1 & vacc$classe_age == "TOUT_AGE", ]
+tmppp1 <- merge(tmpp1, dat.all, by = "codgeo")
+tmpp3 <- vacc[vacc$date == date3 & vacc$classe_age == "TOUT_AGE", ]
+tmppp3 <- merge(tmpp3, dat.all, by = "codgeo")
+plot(tmppp3$Overcrowding_rate, tmppp3$taux_cumu_1_inj, ylim = c(0, 1))
+points(tmppp1$Overcrowding_rate, tmppp1$taux_cumu_1_inj, col = 2)
+
+
+#########################
+names(oLR) <- c(names(parmsLR), c("Estimate", "Std. Error", "z_value", "p"))
+tmp1 <- oLR[oLR$thedate == date1 & oLR$varVacc == "taux_cumu_1_inj", ]
+tmp3 <- oLR[oLR$thedate == date3 & oLR$varVacc == "taux_cumu_1_inj", ]
+tmp
+
+-log(0.05/300)
+
+
+
+plot(-log(tmp$p, 10))
+
+
+plot(abs(tmp1$Estimate), col = colClass[dicPred[tmp1$varPred]], pch = 16)
+
+tmp1[order(abs(tmp1$Estimate), decreasing = TRUE), ][1:10, ]
+
+par(xpd = FALSE)
+plot(abs(tmp1$Estimate), tmp3$Estimate, col = colClass[dicPred[tmp1$varPred]], pch = 16)
+abline(a = 0, b = 1)
+abline(h = 0)
+abline(v = 0)
+
+library(plotly)
+?plotly
+
+
+tmp <- data.frame(t1 = tmp1$Estimate, t3 = tmp3$Estimate, vp = tmp1$varPred, type = dicPred[tmp1$varPred], col = colClass[dicPred[tmp1$varPred]], sz = ifelse(tmp1$p < 0.05/300 & tmp3$p < 0.05/300, 3, 1), p1 = tmp1$p, p3 = tmp3$p)
+
+tmp
+
+fig <- plot_ly(tmp, x = ~t1, y = ~t3, 
+               text = ~paste(type, "", vp, "\n p1=", p1, "p3 = ", p3), color = ~col, 
+               type = "scatter", 
+               size = ~sz)
+fig
+
+
+,
+  # Hover text:
+  text = ~paste("Price: ", price, '$<br>Cut:', cut),
+  color = ~colClass[dicPred[tmp1$varPred]]
+)
+
+fig
+
+
+
+#########################
+
+
+
+
+
+
+
+
+
+
+
+#######################
 0.05/300
 -log(0.05/300, 10)
 
