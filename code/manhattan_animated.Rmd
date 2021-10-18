@@ -1876,7 +1876,7 @@ for (i in c(27, 31, 35)){
 ylim = max(data$`max_OR-inv_OR`[is.finite(data$`max_OR-inv_OR`)], na.rm = T)
 
 fig = data %>%
-  mutate(shape = if_else(OR > 1, 24, 25)) %>%
+  mutate(shape = if_else(OR > 1, 219, 220)) %>%
   mutate(inf = if_else(OR > 1, `2.5 %`, `inv_2.5 %`),
          sup = if_else(OR > 1, `97.5 %`, `inv_97.5 %`),
          value = (sup-inf))
@@ -1896,7 +1896,7 @@ plot_ly(
   text = ~Variable,
   alpha = 0.75,
   symbol = ~shape,
-  symbols = c(219, 219),
+  symbols = c(219, 220),
   hooverinfo = "text",
   type = "scatter",
   mode = "markers"
@@ -2144,11 +2144,11 @@ fig
 
 <!-- === -->
 ```{r, eval = F, echo = F}
-vacc_com = read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-commune/download/?format=csv&refine.classe_age=", "00-19", "&refine.semaine_injection=2021-", "35", "&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
+vacc_com = read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-commune/download/?format=csv&refine.classe_age=", "TOUT_AGE", "&refine.semaine_injection=2021-", "27", "&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
   mutate(codgeo = as.numeric(commune_residence)) %>%
   mutate(taux_cumu_1_inj = as.numeric(taux_cumu_1_inj))
 
-vacc = read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-", "35", "&refine.classe_age=", "00-19", "&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
+vacc = read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-", "27", "&refine.classe_age=", "TOUT_AGE", "&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
   mutate(codgeo = as.numeric(epci)) %>%
   mutate(taux_cumu_1_inj = as.numeric(taux_cumu_1_inj)) %>%
   plyr::rbind.fill(vacc_com)
@@ -2160,9 +2160,10 @@ test = vacc %>% inner_join(LOG_fact %>%
 summary(factor(test$Overcrowding_rate, levels = c(0,1), labels = c(0,1)))
 summary(test$taux_cumu_1_inj)
 
-table(test$Overcrowding_rate, test$taux_cumu_1_inj)
+(t=table(test$Overcrowding_rate, test$taux_cumu_1_inj))
 
 questionr::odds.ratio(factor(test$Overcrowding_rate, levels = c(0,1), labels = c(0,1)), test$taux_cumu_1_inj)
+epitools::oddsratio(x = t, method = "fisher")
 ```
 
 <!-- === -->
@@ -2186,7 +2187,7 @@ for (i in c(27, 31, 35)){
 ylim = max(data$`max_OR-inv_OR`[is.finite(data$`max_OR-inv_OR`)], na.rm = T)
 
 fig = data %>%
-  mutate(shape = if_else(OR > 1, 24, 25)) %>%
+  mutate(shape = if_else(OR > 1, 219, 220)) %>%
   mutate(inf = if_else(OR > 1, `2.5 %`, `inv_2.5 %`),
          sup = if_else(OR > 1, `97.5 %`, `inv_97.5 %`),
          value = (sup-inf))
@@ -2206,7 +2207,7 @@ plot_ly(
   text = ~Variable,
   alpha = 0.75,
   symbol = ~shape,
-  symbols = c(220, 219),
+  symbols = c(219, 220),
   hooverinfo = "text",
   type = "scatter",
   mode = "markers"
@@ -2353,7 +2354,7 @@ for (i in c(27, 31, 35)){
 ylim = max(data$`max_OR-inv_OR`[is.finite(data$`max_OR-inv_OR`)], na.rm = T)
 
 fig = data %>%
-  mutate(shape = if_else(OR > 1, 24, 25)) %>%
+  mutate(shape = if_else(OR > 1, 219, 220)) %>%
   mutate(inf = if_else(OR > 1, `2.5 %`, `inv_2.5 %`),
          sup = if_else(OR > 1, `97.5 %`, `inv_97.5 %`),
          value = (sup-inf))
@@ -2373,7 +2374,7 @@ plot_ly(
   text = ~Variable,
   alpha = 0.75,
   symbol = ~shape,
-  symbols = c(219, 219),
+  symbols = c(219, 220),
   hooverinfo = "text",
   type = "scatter",
   mode = "markers"
@@ -2578,7 +2579,7 @@ for (i in c(27, 31, 35)){
 ylim = max(data$`max_OR-inv_OR`[is.finite(data$`max_OR-inv_OR`)], na.rm = T)
 
 fig = data %>%
-  mutate(shape = if_else(OR > 1, 24, 25)) %>%
+  mutate(shape = if_else(OR > 1, 219, 220)) %>%
   mutate(inf = if_else(OR > 1, `2.5 %`, `inv_2.5 %`),
          sup = if_else(OR > 1, `97.5 %`, `inv_97.5 %`),
          value = (sup-inf))
@@ -2598,7 +2599,7 @@ plot_ly(
   text = ~Variable,
   alpha = 0.75,
   symbol = ~shape,
-  symbols = c(219, 219),
+  symbols = c(219, 220),
   hooverinfo = "text",
   type = "scatter",
   mode = "markers"
@@ -2766,7 +2767,7 @@ for (i in c(27, 31, 35)){
 ylim = max(data$`max_OR-inv_OR`[is.finite(data$`max_OR-inv_OR`)], na.rm = T)
 
 fig = data %>%
-  mutate(shape = if_else(OR > 1, 24, 25)) %>%
+  mutate(shape = if_else(OR > 1, 219, 220)) %>%
   mutate(inf = if_else(OR > 1, `2.5 %`, `inv_2.5 %`),
          sup = if_else(OR > 1, `97.5 %`, `inv_97.5 %`),
          value = (sup-inf))
@@ -2786,7 +2787,7 @@ plot_ly(
   text = ~Variable,
   alpha = 0.75,
   symbol = ~shape,
-  symbols = c(219, 219),
+  symbols = c(219, 220),
   hooverinfo = "text",
   type = "scatter",
   mode = "markers"
@@ -2954,7 +2955,7 @@ for (i in c(27, 31, 35)){
 ylim = max(data$`max_OR-inv_OR`[is.finite(data$`max_OR-inv_OR`)], na.rm = T)
 
 fig = data %>%
-  mutate(shape = if_else(OR > 1, 24, 25)) %>%
+  mutate(shape = if_else(OR > 1, 219, 220)) %>%
   mutate(inf = if_else(OR > 1, `2.5 %`, `inv_2.5 %`),
          sup = if_else(OR > 1, `97.5 %`, `inv_97.5 %`),
          value = (sup-inf))
@@ -2974,7 +2975,7 @@ plot_ly(
   text = ~Variable,
   alpha = 0.75,
   symbol = ~shape,
-  symbols = c(219, 219),
+  symbols = c(219, 220),
   hooverinfo = "text",
   type = "scatter",
   mode = "markers"
@@ -3142,7 +3143,7 @@ for (i in c(27, 31, 35)){
 ylim = max(data$`max_OR-inv_OR`[is.finite(data$`max_OR-inv_OR`)], na.rm = T)
 
 fig = data %>%
-  mutate(shape = if_else(OR > 1, 24, 25)) %>%
+  mutate(shape = if_else(OR > 1, 219, 220)) %>%
   mutate(inf = if_else(OR > 1, `2.5 %`, `inv_2.5 %`),
          sup = if_else(OR > 1, `97.5 %`, `inv_97.5 %`),
          value = (sup-inf))
@@ -3162,7 +3163,7 @@ plot_ly(
   text = ~Variable,
   alpha = 0.75,
   symbol = ~shape,
-  symbols = c(219, 219),
+  symbols = c(219, 220),
   hooverinfo = "text",
   type = "scatter",
   mode = "markers"
@@ -3329,18 +3330,18 @@ plotly::ggplotly(pl) %>%
 vacct = NULL
 
 for (wk in c(27, 31, 35)){
-vacc_com = read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-commune/download/?format=csv&refine.semaine_injection=2021-", wk, "&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
-  mutate(codgeo = as.numeric(commune_residence)) %>%
-  mutate(week = wk) %>%
-  select(codgeo, classe_age, population_carto, effectif_cumu_1_inj, week)
-
-vacc = read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-", wk, "&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
-  mutate(codgeo = as.numeric(epci)) %>%
-  mutate(week = wk) %>%
-  select(codgeo, classe_age, population_carto, effectif_cumu_1_inj, week) %>%
-  plyr::rbind.fill(vacc_com)
-
-vacct = vacct %>% plyr::rbind.fill(vacc)
+  vacc_com = read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-commune/download/?format=csv&refine.semaine_injection=2021-", wk, "&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
+    mutate(codgeo = as.numeric(commune_residence)) %>%
+    mutate(week = wk) %>%
+    select(codgeo, classe_age, population_carto, effectif_cumu_1_inj, week)
+  
+  vacc = read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-", wk, "&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
+    mutate(codgeo = as.numeric(epci)) %>%
+    mutate(week = wk) %>%
+    select(codgeo, classe_age, population_carto, effectif_cumu_1_inj, week) %>%
+    plyr::rbind.fill(vacc_com)
+  
+  vacct = vacct %>% plyr::rbind.fill(vacc)
 }
 
 dfocus = read_csv("data/LOG_fact.csv") %>%
@@ -3355,7 +3356,7 @@ dfocus = read_csv("data/LOG_fact.csv") %>%
 
 ```{r, echo = F, message = F, warning = F}
 
-  dfocus %>%
+dfocus %>%
   filter(!is.na(half)) %>%
   group_by(classe_age, week, Variable, half) %>%
   summarise(population_carto = sum(population_carto, na.rm = T),
@@ -3363,14 +3364,14 @@ dfocus = read_csv("data/LOG_fact.csv") %>%
   ungroup() %>%
   mutate(taux_cumu_1_inj = effectif_cumu_1_inj/population_carto,
          Variable = paste(Variable, half)) %>%
-    plot_ly(
-      x = ~week,
-      y = ~taux_cumu_1_inj,
-      color = ~Variable,
-      symbol = ~half,
-      mode = "lines+markers",
-      frame = ~classe_age 
-    )
+  plot_ly(
+    x = ~week,
+    y = ~taux_cumu_1_inj,
+    color = ~Variable,
+    symbol = ~half,
+    mode = "lines+markers",
+    frame = ~classe_age 
+  )
 
 ```
 
@@ -3448,5 +3449,30 @@ p = data %>%
 #      xaxt="n")
 # rect(26.5,0,34,12,col=grey(0.9),border=F)
 # points(log(data$`max_OR-inv_OR`[data$ban==0]),cex=0.7)
+```
+
+<!-- # Données de vaccination nationales -->
+
+```{r, echo = F, warning = F, message = F, eval = F}
+wk = 37
+
+vacc_com = read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-commune/download/?format=csv&refine.semaine_injection=2021-", wk, "&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
+  mutate(codgeo = as.numeric(commune_residence)) %>%
+  mutate(week = wk) %>%
+  select(codgeo, classe_age, population_carto, effectif_cumu_1_inj, week)
+
+vacc = read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-", wk, "&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
+  mutate(codgeo = as.numeric(epci)) %>%
+  mutate(week = wk) %>%
+  select(codgeo, classe_age, population_carto, effectif_cumu_1_inj, week) %>%
+  plyr::rbind.fill(vacc_com)
+
+vacc %>%
+  filter(!is.na(effectif_cumu_1_inj)) %>%
+  group_by(classe_age) %>%
+  summarise(pop = sum(population_carto, na.rm = T),
+            tot_vacc = sum(effectif_cumu_1_inj, na.rm = T)) %>%
+  ungroup() %>%
+  mutate(tx_vacc = tot_vacc/pop)
 ```
 
