@@ -1,0 +1,2556 @@
+---
+title: "Données de vaccination et Etude socioéconomique"
+author: "Emmanuel LECOEUR"
+date: "03/09/2021"
+output:
+   html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r, options, echo = F, message = F, warning = F}
+# knitr::opts_chunk$set(echo = F, warning = F, message = F)
+```
+
+
+```{r, libraries, echo = F, message = F, warning = F}
+library(tidyverse)
+library(plotly)
+library(gapminder)
+library(desctable)
+library(pander)
+library(rAmCharts)
+```
+
+```{r, insee-data, echo = F, message = F, warning = F}
+last_week = 35
+
+LOG_fact = read_csv("data/LOG_fact.csv")
+EMP_fact = read_csv("data/EMP_fact.csv")
+ACT_fact = read_csv("data/ACT_fact.csv")
+REV_fact = read_csv("data/REV_fact.csv")
+POP_fact = read_csv("data/POP_fact.csv")
+FOR_fact = read_csv("data/FOR_fact.csv")
+IMM_fact = read_csv("data/IMM_fact.csv")
+GEO_fact = read_csv("data/GEO_fact.csv")
+FAM_fact = read_csv("data/FAM_fact.csv")
+
+metro = read_csv("data/exportGeo_EPCI.csv") %>%
+  rename(codgeo = SIREN) %>%
+  plyr::rbind.fill(read_csv("data/exportGeo_ComArr.csv") %>%
+                     rename(codgeo = insee))
+
+# LOG_brut = 
+# EMP_brut = read_csv2("data/EMP_brut.csv")
+# ACT_brut = read_csv2("data/ACT_brut.csv")
+# REV_brut = read_csv2("data/REV_brut.csv")
+# POP_brut = read_csv2("data/POP_brut.csv")
+# FOR_brut = read_csv2("data/FOR_brut.csv")
+# IMM_brut = read_csv2("data/IMM_brut.csv")
+# GEO_brut = read_csv("data/GEO_brut.csv")
+# FAM_brut = read_csv2("data/FAM_brut.csv")
+```
+
+```{r, functions, echo = F, message = F, warning = F}
+# useful functions for correlation matrix
+get_upper_tri <- function(cormat){
+  cormat[lower.tri(cormat)]<- NA
+  return(cormat)
+}
+
+reorder_cormat <- function(cormat){
+  # Utiliser la corrélation entre les variables
+  # comme mésure de distance
+  dd <- as.dist((1-cormat)/2)
+  hc <- hclust(dd)
+  cormat <-cormat[hc$order, hc$order]
+}
+
+binarisation = function(liste, q = 0.5){
+  # dichotomisation od a numeric variable between a quantile threshold
+  mediane = quantile(liste, q, na.rm = T)[[1]]
+  return(factor(simplify2array(lapply(liste-mediane,
+                                      function(x){if_else(x < 0, 0, 1)})), ordered = T))
+}
+
+# fonction qui sort les OR à une date : possibilité de prendre en cumul ou à la semaine et possibilité de choisir la tranche d'âge
+
+make_data_covid = function(wk, variable = "taux_cumu_1_inj", classe_age = "tous"){
+  
+  wk1 = wk-1
+  
+  if (wk/10 <1){
+    wk = paste0("0", wk)
+  }
+  
+  if (wk1/10 <1){
+    wk1 = paste0("0", wk1)
+  }
+  
+  if (classe_age == "tous"){
+    vacc_com = read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-commune/download/?format=csv&refine.semaine_injection=2021-", wk, "&refine.classe_age=TOUT_AGE&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
+      mutate(codgeo = as.numeric(commune_residence)) %>%
+      mutate(taux_cumu_1_inj = as.numeric(taux_cumu_1_inj))
+    
+    vacc = read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-", wk, "&refine.classe_age=TOUT_AGE&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
+      mutate(codgeo = as.numeric(epci)) %>%
+      mutate(taux_cumu_1_inj = as.numeric(taux_cumu_1_inj)) %>%
+      plyr::rbind.fill(vacc_com)
+  }else{
+    vacc_com = read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-commune/download/?format=csv&refine.classe_age=", classe_age, "&refine.semaine_injection=2021-", wk, "&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
+      mutate(codgeo = as.numeric(commune_residence)) %>%
+      mutate(taux_cumu_1_inj = as.numeric(taux_cumu_1_inj))
+    
+    vacc = read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-", wk, "&refine.classe_age=", classe_age, "&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
+      mutate(codgeo = as.numeric(epci)) %>%
+      mutate(taux_cumu_1_inj = as.numeric(taux_cumu_1_inj)) %>%
+      plyr::rbind.fill(vacc_com)
+  }
+  
+  # vacc$taux_cumu_1_inj[is.na(vacc$taux_cumu_1_inj)] <- 0
+  # vacc$taux_1_inj[is.na(vacc$taux_cumu_1_inj)] <- 0
+  
+  vacc = unique(vacc)
+  
+  if (variable == "taux_cumu_1_inj"){ # dans la pratique on sera toujours dans ce cas
+    LOG_1107 = LOG_fact %>%
+      select(-taux_cumu_1_inj) %>% # suppression d'une variable
+      inner_join(vacc) %>% # jointure naturelle
+      mutate(
+        # Application de la fonction binarisation avec le seuil de 0.25 et mise en facteurs des variables
+        taux_cumu_1_inj = as.factor(binarisation(taux_cumu_1_inj, 0.25)), 
+             across(-c(codgeo, taux_cumu_1_inj), function(x){
+               return(factor(x, levels = c(0,1), labels = c(0,1)))}))
+    EMP_1107 = EMP_fact %>%
+      select(-taux_cumu_1_inj) %>%
+      inner_join(vacc) %>%
+      mutate(taux_cumu_1_inj = as.factor(binarisation(taux_cumu_1_inj, 0.25)),
+             across(-c(codgeo, taux_cumu_1_inj), function(x){
+               return(factor(x, levels = c(0,1), labels = c(0,1)))}))
+    FAM_1107 = FAM_fact %>%
+      select(-taux_cumu_1_inj) %>%
+      inner_join(vacc) %>%
+      mutate(taux_cumu_1_inj = as.factor(binarisation(taux_cumu_1_inj, 0.25)),
+             across(-c(codgeo, taux_cumu_1_inj), function(x){
+               return(factor(x, levels = c(0,1), labels = c(0,1)))}))
+    REV_1107 = REV_fact %>%
+      select(-taux_cumu_1_inj) %>%
+      inner_join(vacc) %>%
+      mutate(taux_cumu_1_inj = as.factor(binarisation(taux_cumu_1_inj, 0.25)),
+             across(-c(codgeo, taux_cumu_1_inj), function(x){
+               return(factor(x, levels = c(0,1), labels = c(0,1)))}))
+    ACT_1107 = ACT_fact %>%
+      select(-taux_cumu_1_inj) %>%
+      inner_join(vacc) %>%
+      mutate(taux_cumu_1_inj = as.factor(binarisation(taux_cumu_1_inj, 0.25)),
+             across(-c(codgeo, taux_cumu_1_inj), function(x){
+               return(factor(x, levels = c(0,1), labels = c(0,1)))}))
+    FOR_1107 = FOR_fact %>%
+      select(-taux_cumu_1_inj) %>%
+      inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(taux_cumu_1_inj, 0.25)),
+                                  across(-c(codgeo, taux_cumu_1_inj), function(x){
+                                    return(factor(x, levels = c(0,1), labels = c(0,1)))}))
+    POP_1107 = POP_fact %>%
+      select(-taux_cumu_1_inj) %>%
+      inner_join(vacc) %>%
+      mutate(taux_cumu_1_inj = as.factor(binarisation(taux_cumu_1_inj, 0.25)),
+             across(-c(codgeo, taux_cumu_1_inj), function(x){
+               return(factor(x, levels = c(0,1), labels = c(0,1)))}))
+    IMM_1107 = IMM_fact %>%
+      select(-taux_cumu_1_inj) %>%
+      inner_join(vacc) %>%
+      mutate(taux_cumu_1_inj = as.factor(binarisation(taux_cumu_1_inj, 0.25)),
+             across(-c(codgeo, taux_cumu_1_inj), function(x){
+               return(factor(x, levels = c(0,1), labels = c(0,1)))}))
+    GEO_1107 = GEO_fact %>%
+      select(-taux_cumu_1_inj) %>%
+      inner_join(vacc) %>%
+      mutate(taux_cumu_1_inj = as.factor(binarisation(taux_cumu_1_inj, 0.25)),
+             across(-c(codgeo, taux_cumu_1_inj), function(x){
+               return(factor(x, levels = c(0,1), labels = c(0,1)))}))
+  }else if (variable == "taux_1_inj"){
+    
+    if (classe_age == "tous"){
+      vacc_com1 = read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-commune/download/?format=csv&refine.semaine_injection=2021-", wk1, "&refine.classe_age=TOUT_AGE&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
+        mutate(codgeo = as.numeric(commune_residence)) %>%
+        mutate(taux_cumu_1_inj = as.numeric(taux_cumu_1_inj))
+      
+      vacc1 = read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-", wk1, "&refine.classe_age=TOUT_AGE&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
+        mutate(codgeo = as.numeric(epci)) %>%
+        mutate(taux_cumu_1_inj = as.numeric(taux_cumu_1_inj)) %>%
+        plyr::rbind.fill(vacc_com1)
+    }else{
+      vacc_com1 = read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-commune/download/?format=csv&refine.classe_age=", classe_age, "&refine.semaine_injection=2021-", wk1, "&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
+        mutate(codgeo = as.numeric(commune_residence)) %>%
+        mutate(taux_cumu_1_inj = as.numeric(taux_cumu_1_inj))
+      
+      vacc1 = read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-", wk1, "&refine.classe_age=", classe_age, "&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
+        mutate(codgeo = as.numeric(epci)) %>%
+        mutate(taux_cumu_1_inj = as.numeric(taux_cumu_1_inj)) %>%
+        plyr::rbind.fill(vacc_com1)
+    }
+    
+    # vacc1$taux_cumu_1_inj[is.na(vacc1$taux_cumu_1_inj)] <- 0
+    # vacc1$taux_1_inj[is.na(vacc1$taux_cumu_1_inj)] <- 0
+    
+    vacc = vacc %>%
+      inner_join(vacc1, by = "codgeo") %>%
+      mutate(pop = population_carto.x - effectif_cumu_1_inj.y,
+             taux_1_inj = pop / effectif_1_inj.x)
+    
+    LOG_1107 = LOG_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(as.numeric(taux_1_inj, 0.25))))
+    EMP_1107 = EMP_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(as.numeric(taux_1_inj, 0.25))))
+    FAM_1107 = FAM_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(as.numeric(taux_1_inj, 0.25))))
+    REV_1107 = REV_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(as.numeric(taux_1_inj, 0.25))))
+    ACT_1107 = ACT_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(as.numeric(taux_1_inj, 0.25))))
+    FOR_1107 = FOR_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(as.numeric(taux_1_inj, 0.25))))
+    POP_1107 = POP_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(as.numeric(taux_1_inj, 0.25))))
+    IMM_1107 = IMM_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(as.numeric(taux_1_inj, 0.25))))
+    GEO_1107 = GEO_fact %>% select(-taux_cumu_1_inj) %>% inner_join(vacc) %>% mutate(taux_cumu_1_inj = as.factor(binarisation(as.numeric(taux_1_inj, 0.25))))
+  }
+  
+  # calcul des OR - j'aurais très probablement pu faire tout ca en beaucoup moins de lignes mais j'avoue que je ne me suis pas vraiment penché sur la question.
+  
+  LOG_OR_1107 = questionr::odds.ratio(LOG_1107$`1ry_res`, LOG_1107$taux_cumu_1_inj) %>%
+    # rbind(questionr::odds.ratio(LOG_1107$`2ry_res`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`Vacant_Home`, LOG_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(LOG_1107$`Houses`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`Flats`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`Nb_Rooms_1ry_res`, LOG_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(LOG_1107$`House_1ry_res`, LOG_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(LOG_1107$`Flat_1ry_res`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`1ry_res_bf_1919`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`1ry_res_19-45`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`1ry_res_46-70`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`1ry_res_71-90`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`1ry_res_91-05`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`1ry_res_06-15`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`HH_Moving_Time_lt2y`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`HH_Moving_Time_2to4y`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`HH_Moving_Time_5to9y`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`HH_Moving_Time_10to19y`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`HH_Moving_Time_20to29y`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`HH_Moving_Time_gt30y`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`1ry_res_Owner`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`1ry_res_Tenant`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`1ry_res_Social`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`1ry_res_FreeAcc`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`1ry_res_Carpark`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`1ry_res_0car`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`1ry_res_1car`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`1ry_res_2car`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`1ry_res_3+car`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`Pop_per_1ry_res`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`1ry_res_gt0car`, LOG_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(LOG_1107$`Pop_per_1ry_res_Owner`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`Pop_per_1ry_res_Tenant`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`Pop_per_1ry_res_Social`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`Pop_per_1ry_res_FreeAcc`, LOG_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(LOG_1107$`1ry_res_Occupancy`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`Owners_Occupancy`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`Tenant_Occupancy`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`Social_Occupancy`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`FreeAcc_Occupancy`, LOG_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(LOG_1107$`Overcrowding_rate`, LOG_1107$taux_cumu_1_inj)) %>%
+    as.data.frame() %>%
+    bind_cols(Variable = colnames(LOG_1107)[c(2, 4, 6:7, 10:32, 34:36, 38:42)]) %>%
+    select(Variable, OR, `2.5 %`, `97.5 %`, p)
+  rownames(LOG_OR_1107) = NULL
+  # write_csv2(LOG_OR, "data/LOG_OR.csv")
+  
+  EMP_OR_1107 = questionr::odds.ratio(EMP_1107$`1564_Workforce_rate`, EMP_1107$taux_cumu_1_inj) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1524_Workforce_rate`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`2554_Workforce_rate`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`5564_Workforce_rate`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_men_Workforce_rate`, EMP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(EMP_1107$`1524_men_Workforce_rate`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`2554_men_Workforce_rate`, EMP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(EMP_1107$`5564_men_Workforce_rate`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_women_Workforce_rate`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1524_women_Workforce_rate`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`2554_women_Workforce_rate`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`5564_women_Workforce_rate`, EMP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(EMP_1107$`1564_Employed_rate_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(EMP_1107$`1524_Employed_rate_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(EMP_1107$`2554_Employed_rate_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`5564_Employed_rate_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(EMP_1107$`1564_men_Employed_rate_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1524_men_Employed_rate_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(EMP_1107$`2554_men_Employed_rate_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`5564_men_Employed_rate_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(EMP_1107$`1564_women_Employed_rate_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1524_women_Employed_rate_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(EMP_1107$`2554_women_Employed_rate_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`5564_women_Employed_rate_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(EMP_1107$`1564_Unemployed_rate_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1524_Unemployed_rate_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`2554_Unemployed_rate_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(EMP_1107$`5564_Unemployed_rate_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(EMP_1107$`1564_NonWorking_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_Student_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_Retired_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_OtherInactive_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(EMP_1107$`1564_men_Unemplyed_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(EMP_1107$`1564_women_Unemplyed_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_Student_amg_NW`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_Retired_amg_NW`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_OtherInactive_amg_NW`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_NonWorking_amg_POP`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_Farmers_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_CraftsBusinessShopkeepers_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_HihgQualWorkers_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_IntermediateProf_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_BlueCollar_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_WhiteCollar_amg_WF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_Farmers_amg_EmpWF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_CraftsBusinessShopkeepers_amg_EmpWF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_HihgQualWorkers_amg_EmpWF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_IntermediateProf_amg_EmpWF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_BlueCollar_amg_EmpWF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`1564_WhiteCollar_amg_EmpWF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`15+_men_amg_empWF`, EMP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(EMP_1107$`15+_women_amg_empWF`, EMP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(EMP_1107$`15+_Salaried_amg_empWF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`15+_NonSalaried_amg_empWF`, EMP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(EMP_1107$`15+_FullTime_amg_empWF`, EMP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(EMP_1107$`15+_men_amg_salWF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`15+_women_amg_salWF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`15+_men_amg_nonsalWF`, EMP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(EMP_1107$`15+_women_amg_nonsalWF`, EMP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(EMP_1107$`15+_men_amg_FullTimeWF`, EMP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(EMP_1107$`15+_women_amg_FullTimeWF`, EMP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(EMP_1107$`15+_FullTime_amg_salWF`, EMP_1107$taux_cumu_1_inj)) %>%
+    as.data.frame() %>%
+    bind_cols(Variable = colnames(EMP_1107)[c(2:6, 8, 10:13, 17, 19, 21, 23, 25, 27:28, 31:33, 36:52, 55, 58:59, 63)]) %>%
+    select(Variable, OR, `2.5 %`, `97.5 %`, p)
+  rownames(EMP_OR_1107) = NULL
+  # write_csv2(EMP_OR, "data/EMP_OR.csv")
+  
+  FAM_OR_1107 = questionr::odds.ratio(FAM_1107$`SinglePerson_HH`, FAM_1107$taux_cumu_1_inj) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`SingleMan_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`SingleWoman_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`OtherNoFamily_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(FAM_1107$`Family_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(FAM_1107$`NoChildFamily_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`ChildFamily_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`SingleParent_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`Farmer_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`CraftsBusinessShopkeepers_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`HighQualidied_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`Intermediate_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`BlueCollar_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`WhiteCollar_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`Retired_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`Other_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`15+_SinglePerson_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(FAM_1107$`Pop_SingleMan_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(FAM_1107$`Pop_SingleWoman_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(FAM_1107$`Pop_OtherNoFamily_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(FAM_1107$`Pop_Family_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`Pop_NoChildFamily_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(FAM_1107$`Pop_ChildFamily_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(FAM_1107$`Pop_SingleParent_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(FAM_1107$`Pop_Farmer_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(FAM_1107$`Pop_CraftsBusinessShopkeepers_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(FAM_1107$`Pop_HighQualidied_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(FAM_1107$`Pop_Intermediate_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(FAM_1107$`Pop_BlueCollar_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(FAM_1107$`Pop_WhiteCollar_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(FAM_1107$`Pop_Retired_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`Pop_Other_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(FAM_1107$`1524_amg_15+POP`, FAM_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(FAM_1107$`2554_amg_15+POP`, FAM_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(FAM_1107$`5579_amg_15+POP`, FAM_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(FAM_1107$`80+_amg_15+POP`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`15+_Single_amg_POP`, FAM_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(FAM_1107$`15+_Married_amg_POP`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`15+_nonMarried_amg_POP`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`1524_amg_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`2554_amg_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`5579_amg_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`80+_amg_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`1524_amg_Single`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`2554_amg_Single`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`5579_amg_Single`, FAM_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FAM_1107$`80+_amg_Single`, FAM_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(FAM_1107$`Family_w_Children_amg_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(FAM_1107$`Single_Parent_Family_amg_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(FAM_1107$`Family_wo_Children_amg_HH`, FAM_1107$taux_cumu_1_inj)) %>%
+    as.data.frame() %>%
+    bind_cols(Variable = colnames(FAM_1107)[c(2:5, 8:18, 23, 33, 38, 40:48)]) %>%
+    select(Variable, OR, `2.5 %`, `97.5 %`, p)
+  rownames(FAM_OR_1107) = NULL
+  # write_csv2(FAM_OR, "data/FAM_OR.csv")
+  
+  REV_OR_1107 = questionr::odds.ratio(REV_1107$`D1_st_Living`, REV_1107$taux_cumu_1_inj) %>%
+    rbind(questionr::odds.ratio(REV_1107$`Median_st_Living`, REV_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(REV_1107$`D9_st_Living`, REV_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(REV_1107$`Interdecile_91_Ratio`, REV_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(REV_1107$`Taxable_HH`, REV_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(REV_1107$`Poverty_amg_Owners`, REV_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(REV_1107$`Poverty_amg_Tenants`, REV_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(REV_1107$`-30_Poverty`, REV_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(REV_1107$`3039_Poverty`, REV_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(REV_1107$`4049_Poverty`, REV_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(REV_1107$`5059_Poverty`, REV_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(REV_1107$`6074_Poverty`, REV_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(REV_1107$`75+_Poverty`, REV_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(REV_1107$`Poverty`, REV_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(REV_1107$`Activity_Income`, REV_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(REV_1107$`Salary_Income`, REV_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(REV_1107$`Unemployment_Benef`, REV_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(REV_1107$`Self-Employment`, REV_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(REV_1107$`Pensions_Annuities`, REV_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(REV_1107$`Estate`, REV_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(REV_1107$`Social_Benef`, REV_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(REV_1107$`Family_Benef`, REV_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(REV_1107$`Social_Minima`, REV_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(REV_1107$`Housing_Benef`, REV_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(REV_1107$`Tax`, REV_1107$taux_cumu_1_inj)) %>%
+    as.data.frame() %>%
+    bind_cols(Variable = colnames(REV_1107)[c(2:6, 8, 16, 18:24, 26)]) %>%
+    select(Variable, OR, `2.5 %`, `97.5 %`, p)
+  rownames(REV_OR_1107) = NULL
+  # write_csv2(REV_OR, "data/REV_OR.csv")
+  
+  ACT_OR_1107 = questionr::odds.ratio(ACT_1107$`Wk_Res_Municipality`, ACT_1107$taux_cumu_1_inj) %>%
+    rbind(questionr::odds.ratio(ACT_1107$`Wk_Res_County-Municipality`, ACT_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(ACT_1107$`Wk_Res_Region-County`, ACT_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(ACT_1107$`Wk_Res_Country-Region`, ACT_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(ACT_1107$`Wk_Dom_Com_Abroad`, ACT_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(ACT_1107$`noTransport_toWk`, ACT_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(ACT_1107$`Walk_toWk`, ACT_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(ACT_1107$`Bike_toWk`, ACT_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(ACT_1107$`Motorbike_toWk`, ACT_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(ACT_1107$`Drive_toWk`, ACT_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(ACT_1107$`PublicTrans_toWk`, ACT_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(ACT_1107$`15+_Men_amg_salWF`, ACT_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(ACT_1107$`15+_Women_amg_salWF`, ACT_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(ACT_1107$`15+_PermanentContract_amg_salWF`, ACT_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(ACT_1107$`15+_ShortTermContract_amg_salWF`, ACT_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(ACT_1107$`15+_InterimContract_amg_salWF`, ACT_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(ACT_1107$`15+_SubsidizedWork_amg_salWF`, ACT_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(ACT_1107$`15+_ApprenticeContract_amg_salWF`, ACT_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(ACT_1107$`15+_SelfEmployed_amg_nonsalWF`, ACT_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(ACT_1107$`15+_Employers_amg_nonsalWF`, ACT_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(ACT_1107$`15+_caregivers_amg_nonsalWF`, ACT_1107$taux_cumu_1_inj)) %>%
+    as.data.frame() %>%
+    bind_cols(Variable = colnames(ACT_1107)[2:13]) %>%
+    select(Variable, OR, `2.5 %`, `97.5 %`, p)
+  rownames(ACT_OR_1107) = NULL
+  # write_csv2(ACT_OR, "data/ACT_OR.csv")
+  
+  FOR_OR_1107 = questionr::odds.ratio(FOR_1107$`0205_School`, FOR_1107$taux_cumu_1_inj) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`0610_School`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`1114_School`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`1517_School`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`1824_School`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`2529_School`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`30+_School`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`15+_NoDiploma_amg_WF`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`15+_CertifGeneEducation_amg_WF`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`15+_VocationalGraduate_amg_WF`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`15+_HighSchoolGraduate_amg_WF`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`15+_HSG+2_amg_WF`, FOR_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(FOR_1107$`15+_HSG+4_amg_WF`, FOR_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(FOR_1107$`15+_HSG+5+_amg_WF`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`15+_HighEducation_amg_WF`, FOR_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(FOR_1107$`15+_men_NoDiploma_amg_mWF`, FOR_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(FOR_1107$`15+_men_VocationalGraduate_amg_mWF`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`15+_men_HighSchoolGraduate_amg_mWF`, FOR_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(FOR_1107$`15+_men_HighEducation_amg_mWF`, FOR_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(FOR_1107$`15+_women_NoDiploma_amg_wWF`, FOR_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(FOR_1107$`15+_women_VocationalGraduate_amg_wWF`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`15+_women_HighSchoolGraduate_amg_wWF`, FOR_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(FOR_1107$`15+_women_HighEducation_amg_wWF`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`15+_MenOnWomen_NoDiploma`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`15+_MenOnWomen_VocationalGraduate`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`15+_MenOnWomen_HighSchoolGraduate`, FOR_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(FOR_1107$`15+_MenOnWomen_HighEducation`, FOR_1107$taux_cumu_1_inj)) %>%
+    as.data.frame() %>%
+    bind_cols(Variable = colnames(FOR_1107)[c(2:13, 16, 19, 23, 25:28)]) %>%
+    select(Variable, OR, `2.5 %`, `97.5 %`, p)
+  rownames(FOR_OR_1107) = NULL
+  # write_csv2(FOR_OR, "data/FOR_OR.csv")
+  
+  POP_OR_1107 = questionr::odds.ratio(POP_1107$`3044_amg_POP`, POP_1107$taux_cumu_1_inj) %>%
+    rbind(questionr::odds.ratio(POP_1107$`4559_amg_POP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`6074_amg_POP`, POP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(POP_1107$`7589_amg_POP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`90+_amg_POP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`Men`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`0019_amg_POP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`2064_amg_POP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`65+_amg_POP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_Farmers_amg_POP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_CraftsBusinessShopkeeper_amg_POP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_ManagersHigherIntellectProf_amg_POP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_IntermediateProf_amg_POP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_WhiteCollar_amg_POP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_BlueCollar_amg_POP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_Retired_amg_POP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_OtherNoActivity_amg_POP`, POP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(POP_1107$`0014_men_amg_mPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`1529_men_amg_mPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(POP_1107$`3044_men_amg_mPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(POP_1107$`4559_men_amg_mPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(POP_1107$`6074_men_amg_mPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(POP_1107$`7589_men_amg_mPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`90+_men_amg_mPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(POP_1107$`0019_men_amg_mPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(POP_1107$`2064_men_amg_mPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(POP_1107$`65+_men_amg_mPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(POP_1107$`15+_men_Farmers_amg_mPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(POP_1107$`15+_men_CraftsBusinessShopkeeper_amg_mPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(POP_1107$`15+_men_ManagersHigherIntellectProf_amg_mPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_men_IntermediateProf_amg_mPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_men_WhiteCollar_amg_mPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(POP_1107$`15+_men_BlueCollar_amg_mPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(POP_1107$`15+_men_Retired_amg_mPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_men_OtherNoActivity_amg_POP`, POP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(POP_1107$`0014_women_amg_wPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`1529_women_amg_wPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(POP_1107$`3044_women_amg_wPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(POP_1107$`4559_women_amg_wPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(POP_1107$`6074_women_amg_wPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(POP_1107$`7589_women_amg_wPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(POP_1107$`90+_women_amg_wPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(POP_1107$`0019_women_amg_wPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(POP_1107$`2064_women_amg_wPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(POP_1107$`65+_women_amg_wPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(POP_1107$`15+_women_Farmers_amg_wPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_women_CraftsBusinessShopkeeper_amg_wPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(POP_1107$`15+_women_ManagersHigherIntellectProf_amh_wPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(POP_1107$`15+_women_IntermediateProf_amg_wPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_women_WhiteCollar_amg_wPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_women_BlueCollar_amg_wPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(POP_1107$`15+_women_Retired_amg_wPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(POP_1107$`15+_women_OtherNoActivity_amg_wPOP`, POP_1107$taux_cumu_1_inj)) %>%
+    as.data.frame() %>%
+    bind_cols(Variable = colnames(POP_1107)[c(4:6, 8:20, 22, 27, 34:35, 38, 40, 50, 53:54, 56)]) %>%
+    select(Variable, OR, `2.5 %`, `97.5 %`, p)
+  rownames(POP_OR_1107) = NULL
+  # write_csv2(POP_OR, "data/POP_OR.csv")
+  
+  IMM_OR_1107 = questionr::odds.ratio(IMM_1107$`Immigrant`, IMM_1107$taux_cumu_1_inj) %>%
+    # rbind(questionr::odds.ratio(IMM_1107$`French_nlty_amg_Men`, IMM_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(IMM_1107$`Stranger_amg_Men`, IMM_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(IMM_1107$`Immigrant_amg_Men`, IMM_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(IMM_1107$`French_nlty_amg_Women`, IMM_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(IMM_1107$`Stranger_amg_Women`, IMM_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(IMM_1107$`Immigrant_amg_Women`, IMM_1107$taux_cumu_1_inj)) %>%
+    # rbind(questionr::odds.ratio(IMM_1107$`Res_Abroad_2017`, IMM_1107$taux_cumu_1_inj)) %>%
+    as.data.frame() %>%
+    bind_cols(Variable = colnames(IMM_1107)[4]) %>%
+    select(Variable, OR, `2.5 %`, `97.5 %`, p)
+  rownames(IMM_OR_1107) = NULL
+  # write_csv2(IMM_OR, "data/IMM_OR.csv")
+  
+  
+  GEO_OR_1107 = questionr::odds.ratio(GEO_1107$latitude, GEO_1107$taux_cumu_1_inj) %>%
+    rbind(questionr::odds.ratio(GEO_1107$longitude, GEO_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(GEO_1107$densite, GEO_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(GEO_1107$`SO-NE`, GEO_1107$taux_cumu_1_inj)) %>%
+    rbind(questionr::odds.ratio(GEO_1107$`NO-SE`, GEO_1107$taux_cumu_1_inj)) %>%
+    as.data.frame() %>%
+    bind_cols(Variable = colnames(GEO_1107)[c(2:4, 7:8)]) %>%
+    select(Variable, OR, `2.5 %`, `97.5 %`, p)
+  rownames(GEO_OR_1107) = NULL
+  # write_csv2(GEO_OR, "data/GEO_OR.csv")
+  
+  # combinaison des tables
+  
+  DF_OR_1107 = LOG_OR_1107 %>% mutate(theme = "Housing", .after = Variable) %>%
+    bind_rows(EMP_OR_1107 %>% mutate(theme = "Employment", .after = Variable)) %>%
+    bind_rows(FAM_OR_1107 %>% mutate(theme = "Family", .after = Variable)) %>%
+    bind_rows(REV_OR_1107 %>% mutate(theme = "Revenue", .after = Variable)) %>%
+    bind_rows(ACT_OR_1107 %>% mutate(theme = "Activity", .after = Variable)) %>%
+    bind_rows(FOR_OR_1107 %>% mutate(theme = "School", .after = Variable)) %>%
+    bind_rows(POP_OR_1107 %>% mutate(theme = "Population", .after = Variable)) %>%
+    bind_rows(IMM_OR_1107 %>% mutate(theme = "Immigration", .after = Variable)) %>%
+    bind_rows(GEO_OR_1107 %>% mutate(theme = "Geography", .after = Variable)) %>%
+    group_by(theme) %>%
+    mutate(id = row_number()) %>%
+    ungroup() %>%
+    mutate(inv_OR = 1/OR,
+           `inv_2.5 %` = 1/`97.5 %`,
+           `inv_97.5 %` = 1/`2.5 %`,
+           `is_OR_>1` = OR > inv_OR,
+           `max_OR-inv_OR` = if_else(`is_OR_>1`, OR, inv_OR)) %>%
+    arrange(desc(`max_OR-inv_OR`))
+  return(DF_OR_1107)
+}
+```
+
+# Les données
+
+## Les EPCI + les communes de des métropoles de Paris, Lyon et Marseille.
+
+```{r, pop-epci-insee, echo = F, message = F, warning = F}
+pop = read.csv2("data/POP.csv") %>%
+  plyr::rbind.fill(read.csv2("data/com_POP.csv")) %>%
+  select(codgeo, SEXE.AGE15_15_90_POP_ENS_ENS) %>%
+  rename(Population = SEXE.AGE15_15_90_POP_ENS_ENS)
+pop %>%
+  select(Population) %>%
+  desctable(stats = list("N" = length, "Med" = median, "IQR" = IQR)) %>%
+  pander()
+```
+
+## Les données de vaccination : Taux de vaccination cumulées par tranche d'âge
+
+Les tableaux suivants donnent les taux de vaccination totaux par tranche d'âge pour plusieurs semaines clés.
+
+On a retiré les codes insee de Mayotte puisqu'ils ne sont pas répertoriés dans l'extraction de l'insee, nous avons aussi retiré les codes suivants
+
+- 999999999, 75999, 69999, 13999 : patients dont la répartition n'est pas possible.
+
+- On ne garde aussi que les codes insee de métropole. On retire les 3 codes des EPCI de la métropole du grand Paris, la métropole de lyon et la métropole d'Aix-Marseille car ces données feraient doublon puisque nous avons les données de vaccinations à l'échelle de la commune pour ces EPCI.
+
+Vertaines données de vaccination sont manquantes par souci d'anonymisation sur des territoires trop peu peuplés.
+
+### **Semaine 27** : juste avant l'annonce du passe sanitaire en France
+
+```{r, s27, echo = F, message = F, warning = F}
+read_csv2(url("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-27&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"),
+          col_type = list(
+            date_reference = col_date(format = ""),
+            semaine_injection = col_character(),
+            epci = col_double(),
+            libelle_epci = col_character(),
+            population_carto = col_double(),
+            classe_age = col_character(),
+            libelle_classe_age = col_character(),
+            effectif_1_inj = col_double(),
+            effectif_termine = col_double(),
+            effectif_cumu_1_inj = col_double(),
+            effectif_cumu_termine = col_double(),
+            taux_1_inj = col_character(),
+            taux_termine = col_character(),
+            taux_cumu_1_inj = col_character(),
+            taux_cumu_termine = col_character(),
+            date = col_date(format = ""),
+            reg_code = col_double()
+          )) %>%
+  mutate(codgeo = epci) %>%
+  plyr::rbind.fill(read_csv2(url("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-commune/download/?format=csv&refine.semaine_injection=2021-27&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"),
+                             col_type = list(
+                               date_reference = col_date(format = ""),
+                               semaine_injection = col_character(),
+                               commune_residence = col_double(),
+                               libelle_commune = col_character(),
+                               population_carto = col_double(),
+                               classe_age = col_character(),
+                               libelle_classe_age = col_character(),
+                               effectif_1_inj = col_double(),
+                               effectif_termine = col_double(),
+                               effectif_cumu_1_inj = col_double(),
+                               effectif_cumu_termine = col_double(),
+                               taux_1_inj = col_character(),
+                               taux_termine = col_character(),
+                               taux_cumu_1_inj = col_character(),
+                               taux_cumu_termine = col_character(),
+                               date = col_date(format = ""),
+                               reg_code = col_double()
+                             )) %>%
+                     mutate(codgeo = commune_residence)) %>%
+  mutate(taux_cumu_1_inj = as.numeric(taux_cumu_1_inj),
+         taux_cumu_1_inj = if_else(is.na(taux_cumu_1_inj), 0, taux_cumu_1_inj)) %>%
+  filter(!(codgeo %in% c(999999999, 200054807, 200054781, 200046977))) %>%
+  select(codgeo, classe_age, taux_cumu_1_inj) %>%
+  pivot_wider(# reshape
+    id_cols = codgeo,
+              names_from = classe_age,
+              values_from = taux_cumu_1_inj) %>%
+  inner_join(pop %>% select(codgeo)) %>%
+  select(5,6,7,2,3,4,8) %>%
+  desctable() %>%
+  pander()
+```
+
+### **Semaine 31** : juste avant l'obligation du passe sanitaire en France
+
+```{r, s31, message = F, echo = F, warning = F}
+read_csv2(url("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-31&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"),
+          col_type = list(
+            date_reference = col_date(format = ""),
+            semaine_injection = col_character(),
+            epci = col_double(),
+            libelle_epci = col_character(),
+            population_carto = col_double(),
+            classe_age = col_character(),
+            libelle_classe_age = col_character(),
+            effectif_1_inj = col_double(),
+            effectif_termine = col_double(),
+            effectif_cumu_1_inj = col_double(),
+            effectif_cumu_termine = col_double(),
+            taux_1_inj = col_character(),
+            taux_termine = col_character(),
+            taux_cumu_1_inj = col_character(),
+            taux_cumu_termine = col_character(),
+            date = col_date(format = ""),
+            reg_code = col_double()
+          )) %>%
+  mutate(codgeo = epci) %>%
+  plyr::rbind.fill(read_csv2(url("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-commune/download/?format=csv&refine.semaine_injection=2021-31&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"),
+                             col_type = list(
+                               date_reference = col_date(format = ""),
+                               semaine_injection = col_character(),
+                               commune_residence = col_double(),
+                               libelle_commune = col_character(),
+                               population_carto = col_double(),
+                               classe_age = col_character(),
+                               libelle_classe_age = col_character(),
+                               effectif_1_inj = col_double(),
+                               effectif_termine = col_double(),
+                               effectif_cumu_1_inj = col_double(),
+                               effectif_cumu_termine = col_double(),
+                               taux_1_inj = col_character(),
+                               taux_termine = col_character(),
+                               taux_cumu_1_inj = col_character(),
+                               taux_cumu_termine = col_character(),
+                               date = col_date(format = ""),
+                               reg_code = col_double()
+                             )) %>%
+                     mutate(codgeo = commune_residence)) %>%
+  mutate(taux_cumu_1_inj = as.numeric(taux_cumu_1_inj),
+         taux_cumu_1_inj = if_else(is.na(taux_cumu_1_inj), 0, taux_cumu_1_inj)) %>%
+  filter(!(codgeo %in% c(999999999, 200054807, 200054781, 200046977))) %>%
+  select(codgeo, classe_age, taux_cumu_1_inj) %>%
+  pivot_wider(id_cols = codgeo,
+              names_from = classe_age,
+              values_from = taux_cumu_1_inj) %>%
+  inner_join(pop %>% select(codgeo)) %>%
+  select(3,4,8,6,7,2,5) %>%
+  desctable() %>%
+  pander()
+```
+
+### **Semaine 35** : le plus récent
+
+```{r, s35, warning = F, echo = F, message = F}
+read_csv2(url("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-35&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"),
+          col_type = list(
+            date_reference = col_date(format = ""),
+            semaine_injection = col_character(),
+            epci = col_double(),
+            libelle_epci = col_character(),
+            population_carto = col_double(),
+            classe_age = col_character(),
+            libelle_classe_age = col_character(),
+            effectif_1_inj = col_double(),
+            effectif_termine = col_double(),
+            effectif_cumu_1_inj = col_double(),
+            effectif_cumu_termine = col_double(),
+            taux_1_inj = col_character(),
+            taux_termine = col_character(),
+            taux_cumu_1_inj = col_character(),
+            taux_cumu_termine = col_character(),
+            date = col_date(format = ""),
+            reg_code = col_double()
+          )) %>%
+  mutate(codgeo = epci) %>%
+  plyr::rbind.fill(read_csv2(url("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-commune/download/?format=csv&refine.semaine_injection=2021-35&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"),
+                             col_type = list(
+                               date_reference = col_date(format = ""),
+                               semaine_injection = col_character(),
+                               commune_residence = col_double(),
+                               libelle_commune = col_character(),
+                               population_carto = col_double(),
+                               classe_age = col_character(),
+                               libelle_classe_age = col_character(),
+                               effectif_1_inj = col_double(),
+                               effectif_termine = col_double(),
+                               effectif_cumu_1_inj = col_double(),
+                               effectif_cumu_termine = col_double(),
+                               taux_1_inj = col_character(),
+                               taux_termine = col_character(),
+                               taux_cumu_1_inj = col_character(),
+                               taux_cumu_termine = col_character(),
+                               date = col_date(format = ""),
+                               reg_code = col_double()
+                             )) %>%
+                     mutate(codgeo = commune_residence)) %>%
+  mutate(taux_cumu_1_inj = as.numeric(taux_cumu_1_inj),
+         taux_cumu_1_inj = if_else(is.na(taux_cumu_1_inj), 0, taux_cumu_1_inj)) %>%
+  filter(!(codgeo %in% c(999999999, 200054807, 200054781, 200046977))) %>%
+  select(codgeo, classe_age, taux_cumu_1_inj) %>%
+  pivot_wider(id_cols = codgeo,
+              names_from = classe_age,
+              values_from = taux_cumu_1_inj) %>%
+  inner_join(pop %>% select(codgeo)) %>%
+  select(4,6,5,2,3,7,8) %>%
+  desctable() %>%
+  pander()
+```
+
+# Les variables utilisées pour l'étude
+
+On a représenté les matrices de corrélation sous forme de Heatmap.
+
+Les variables corrélées entre elles à plus de 95 % sont représentées sous forme de graphe.
+
+## Thématique Logement
+
+```{r, desctable-log, echo = F, message = F, warning = F}
+read.csv("data/LOG_brut.csv") %>%
+  select(-c(codgeo, taux_cumu_1_inj)) %>%
+  desctable(stats = list("N" = length, "Med" = median, "IQR" = IQR)) %>%
+  pander()
+```
+
+```{r, corr-log, echo = F, message = F, warning = F}
+data_b = read_csv("data/LOG_brut.csv") %>% select(-taux_cumu_1_inj)
+
+data_b %>%
+  select(-codgeo) %>% 
+  drop_na() %>%
+  cor() %>%
+  reorder_cormat() %>%
+  get_upper_tri() %>%
+  round(., 2) %>%
+  reshape2::melt(, na.rm = T) %>%
+  ggplot() +
+  aes(x = Var1, y = Var2, fill = value) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0, limit = c(-1,1), space = "Lab", name="Pearson\nCorrelation") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(vjust = 1, size = 12, hjust = 1, angle = 45),
+        axis.text.y = element_text(vjust = 1, size = 12, hjust = 1)) +
+  coord_fixed()
+```
+
+```{r, network-log, echo = F, message = F, warning = F}
+seuil = 0.95
+
+library(visNetwork)
+
+database = data_b %>%
+  select(-codgeo) %>%
+  drop_na() %>%
+  cor() %>%
+  reorder_cormat() %>%
+  get_upper_tri() %>%
+  round(., 2) %>%
+  reshape2::melt(, na.rm = T) %>%
+  filter(Var1 != Var2 & (value > seuil | value < -seuil)) %>%
+  data.frame()
+
+nodes = data.frame(label = database$Var1) %>%
+  bind_rows(data.frame(label = database$Var2)) %>%
+  unique() %>%
+  mutate(id = row_number())
+
+edges = database %>%
+  inner_join(nodes, by = c("Var1" = "label")) %>%
+  rename(from = id) %>%
+  inner_join(nodes, by = c("Var2" = "label")) %>%
+  rename(to = id) %>%
+  select(from, to)
+
+visNetwork(nodes, edges) %>%
+  visOptions(highlightNearest = TRUE)
+```
+
+
+## Thématique Emploi
+
+```{r, echo = F, message = F, warning = F}
+read.csv("data/EMP_brut.csv") %>%
+  select(-c(codgeo, taux_cumu_1_inj)) %>%
+  desctable(stats = list("N" = length, "Med" = median, "IQR" = IQR)) %>%
+  pander()
+```
+
+```{r, echo = F, message = F, warning = F}
+data_b = read_csv("data/EMP_brut.csv") %>% select(-taux_cumu_1_inj)
+
+data_b %>%
+  select(-codgeo) %>%
+  drop_na() %>%
+  cor() %>%
+  reorder_cormat() %>%
+  get_upper_tri() %>%
+  round(., 2) %>%
+  reshape2::melt(, na.rm = T) %>%
+  ggplot() +
+  aes(x = Var1, y = Var2, fill = value) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0, limit = c(-1,1), space = "Lab", name="Pearson\nCorrelation") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(vjust = 1, size = 12, hjust = 1, angle = 45),
+        axis.text.y = element_text(vjust = 1, size = 12, hjust = 1)) +
+  coord_fixed()
+```
+
+```{r, echo = F, message = F, warning = F}
+database = data_b %>%
+  select(-codgeo) %>%
+  drop_na() %>%
+  cor() %>%
+  reorder_cormat() %>%
+  get_upper_tri() %>%
+  round(., 2) %>%
+  reshape2::melt(, na.rm = T) %>%
+  filter(Var1 != Var2 & (value > seuil | value < -seuil)) %>%
+  data.frame()
+
+nodes = data.frame(label = database$Var1) %>%
+  bind_rows(data.frame(label = database$Var2)) %>%
+  unique() %>%
+  mutate(id = row_number())
+
+edges = database %>%
+  inner_join(nodes, by = c("Var1" = "label")) %>%
+  rename(from = id) %>%
+  inner_join(nodes, by = c("Var2" = "label")) %>%
+  rename(to = id) %>%
+  select(from, to)
+
+visNetwork(nodes, edges) %>%
+  visOptions(highlightNearest = TRUE)
+```
+
+## Thématique Famille
+
+```{r, echo = F, message = F, warning = F}
+read.csv("data/FAM_brut.csv") %>%
+  select(-c(codgeo, taux_cumu_1_inj)) %>%
+  desctable(stats = list("N" = length, "Med" = median, "IQR" = IQR)) %>%
+  pander()
+```
+
+```{r, echo = F, message = F, warning = F}
+data_b = read_csv("data/FAM_brut.csv") %>% select(-taux_cumu_1_inj)
+
+data_b %>%
+  select(-codgeo) %>%
+  drop_na() %>%
+  cor() %>%
+  reorder_cormat() %>%
+  get_upper_tri() %>%
+  round(., 2) %>%
+  reshape2::melt(, na.rm = T) %>%
+  ggplot() +
+  aes(x = Var1, y = Var2, fill = value) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0, limit = c(-1,1), space = "Lab", name="Pearson\nCorrelation") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(vjust = 1, size = 12, hjust = 1, angle = 45),
+        axis.text.y = element_text(vjust = 1, size = 12, hjust = 1)) +
+  coord_fixed()
+```
+
+```{r, echo = F, message = F, warning = F}
+database = data_b %>%
+  select(-codgeo) %>%
+  drop_na() %>%
+  cor() %>%
+  reorder_cormat() %>%
+  get_upper_tri() %>%
+  round(., 2) %>%
+  reshape2::melt(, na.rm = T) %>%
+  filter(Var1 != Var2 & (value > seuil | value < -seuil)) %>%
+  data.frame()
+
+nodes = data.frame(label = database$Var1) %>%
+  bind_rows(data.frame(label = database$Var2)) %>%
+  unique() %>%
+  mutate(id = row_number())
+
+edges = database %>%
+  inner_join(nodes, by = c("Var1" = "label")) %>%
+  rename(from = id) %>%
+  inner_join(nodes, by = c("Var2" = "label")) %>%
+  rename(to = id) %>%
+  select(from, to)
+
+visNetwork(nodes, edges) %>%
+  visOptions(highlightNearest = TRUE)
+```
+
+## Thématique Revenus
+
+```{r, echo = F, message = F, warning = F}
+read.csv("data/REV_brut.csv") %>%
+  select(-c(codgeo, taux_cumu_1_inj)) %>%
+  desctable(stats = list("N" = length, "Med" = median, "IQR" = IQR)) %>%
+  pander()
+```
+
+```{r, echo = F, message = F, warning = F}
+data_b = read_csv("data/REV_brut.csv") %>% select(-c(taux_cumu_1_inj,
+                                                     `Poverty_amg_Owners`,
+                                                     `-30_Poverty`,
+                                                     `3039_Poverty`,
+                                                     `4049_Poverty`,
+                                                     `5059_Poverty`,
+                                                     `6074_Poverty`,
+                                                     `75+_Poverty`))
+
+data_b %>%
+  select(-codgeo) %>%
+  drop_na() %>%
+  cor() %>%
+  reorder_cormat() %>%
+  get_upper_tri() %>%
+  round(., 2) %>%
+  reshape2::melt(, na.rm = T) %>%
+  ggplot() +
+  aes(x = Var1, y = Var2, fill = value) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0, limit = c(-1,1), space = "Lab", name="Pearson\nCorrelation") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(vjust = 1, size = 12, hjust = 1, angle = 45),
+        axis.text.y = element_text(vjust = 1, size = 12, hjust = 1)) +
+  coord_fixed()
+```
+
+```{r, echo = F, message = F, warning = F}
+database = data_b %>%
+  select(-codgeo) %>%
+  drop_na() %>%
+  cor() %>%
+  reorder_cormat() %>%
+  get_upper_tri() %>%
+  round(., 2) %>%
+  reshape2::melt(, na.rm = T) %>%
+  filter(Var1 != Var2 & (value > seuil | value < -seuil)) %>%
+  data.frame()
+
+nodes = data.frame(label = database$Var1) %>%
+  bind_rows(data.frame(label = database$Var2)) %>%
+  unique() %>%
+  mutate(id = row_number())
+
+edges = database %>%
+  inner_join(nodes, by = c("Var1" = "label")) %>%
+  rename(from = id) %>%
+  inner_join(nodes, by = c("Var2" = "label")) %>%
+  rename(to = id) %>%
+  select(from, to)
+
+visNetwork(nodes, edges) %>%
+  visOptions(highlightNearest = TRUE)
+```
+
+## Thématique Activité
+
+```{r, echo = F, message = F, warning = F}
+read.csv("data/ACT_brut.csv") %>%
+  select(-c(codgeo, taux_cumu_1_inj)) %>%
+  desctable(stats = list("N" = length, "Med" = median, "IQR" = IQR)) %>%
+  pander()
+```
+
+```{r, echo = F, message = F, warning = F}
+data_b = read_csv("data/ACT_brut.csv") %>% select(-c(taux_cumu_1_inj,
+                                                     `15+_PermanentContract_amg_salWF`,
+                                                     `15+_ShortTermContract_amg_salWF`,
+                                                     `15+_InterimContract_amg_salWF`,
+                                                     `15+_SubsidizedWork_amg_salWF`,
+                                                     `15+_ApprenticeContract_amg_salWF`,
+                                                     `15+_SelfEmployed_amg_nonsalWF`,
+                                                     `15+_Employers_amg_nonsalWF`,
+                                                     `15+_caregivers_amg_nonsalWF`))
+
+data_b %>%
+  select(-codgeo) %>%
+  drop_na() %>%
+  cor() %>%
+  reorder_cormat() %>%
+  get_upper_tri() %>%
+  round(., 2) %>%
+  reshape2::melt(, na.rm = T) %>%
+  ggplot() +
+  aes(x = Var1, y = Var2, fill = value) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0, limit = c(-1,1), space = "Lab", name="Pearson\nCorrelation") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(vjust = 1, size = 12, hjust = 1, angle = 45),
+        axis.text.y = element_text(vjust = 1, size = 12, hjust = 1)) +
+  coord_fixed()
+```
+
+```{r, echo = F, message = F, warning = F}
+database = data_b %>%
+  select(-codgeo) %>%
+  drop_na() %>%
+  cor() %>%
+  reorder_cormat() %>%
+  get_upper_tri() %>%
+  round(., 2) %>%
+  reshape2::melt(, na.rm = T) %>%
+  filter(Var1 != Var2 & (value > seuil | value < -seuil)) %>%
+  data.frame()
+
+nodes = data.frame(label = database$Var1) %>%
+  bind_rows(data.frame(label = database$Var2)) %>%
+  unique() %>%
+  mutate(id = row_number())
+
+edges = database %>%
+  inner_join(nodes, by = c("Var1" = "label")) %>%
+  rename(from = id) %>%
+  inner_join(nodes, by = c("Var2" = "label")) %>%
+  rename(to = id) %>%
+  select(from, to)
+
+visNetwork(nodes, edges) %>%
+  visOptions(highlightNearest = TRUE)
+```
+
+## Thématique Formation
+
+```{r, echo = F, message = F, warning = F}
+read.csv("data/FOR_brut.csv") %>%
+  select(-c(codgeo, taux_cumu_1_inj)) %>%
+  desctable(stats = list("N" = length, "Med" = median, "IQR" = IQR)) %>%
+  pander()
+```
+
+```{r, echo = F, message = F, warning = F}
+data_b = read_csv("data/FOR_brut.csv") %>% select(-taux_cumu_1_inj)
+
+data_b %>%
+  select(-codgeo) %>%
+  drop_na() %>%
+  cor() %>%
+  reorder_cormat() %>%
+  get_upper_tri() %>%
+  round(., 2) %>%
+  reshape2::melt(, na.rm = T) %>%
+  ggplot() +
+  aes(x = Var1, y = Var2, fill = value) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0, limit = c(-1,1), space = "Lab", name="Pearson\nCorrelation") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(vjust = 1, size = 12, hjust = 1, angle = 45),
+        axis.text.y = element_text(vjust = 1, size = 12, hjust = 1)) +
+  coord_fixed()
+```
+
+```{r, echo = F, message = F, warning = F}
+database = data_b %>%
+  select(-codgeo) %>%
+  drop_na() %>%
+  cor() %>%
+  reorder_cormat() %>%
+  get_upper_tri() %>%
+  round(., 2) %>%
+  reshape2::melt(, na.rm = T) %>%
+  filter(Var1 != Var2 & (value > seuil | value < -seuil)) %>%
+  data.frame()
+
+nodes = data.frame(label = database$Var1) %>%
+  bind_rows(data.frame(label = database$Var2)) %>%
+  unique() %>%
+  mutate(id = row_number())
+
+edges = database %>%
+  inner_join(nodes, by = c("Var1" = "label")) %>%
+  rename(from = id) %>%
+  inner_join(nodes, by = c("Var2" = "label")) %>%
+  rename(to = id) %>%
+  select(from, to)
+
+visNetwork(nodes, edges) %>%
+  visOptions(highlightNearest = TRUE)
+```
+
+## Thématique Population
+
+```{r, echo = F, message = F, warning = F}
+read.csv("data/POP_brut.csv") %>%
+  select(-c(codgeo, taux_cumu_1_inj)) %>%
+  desctable(stats = list("N" = length, "Med" = median, "IQR" = IQR)) %>%
+  pander()
+```
+
+```{r, echo = F, message = F, warning = F}
+data_b = read_csv("data/POP_brut.csv") %>% select(-taux_cumu_1_inj)
+
+data_b %>%
+  select(-codgeo) %>%
+  drop_na() %>%
+  cor() %>%
+  reorder_cormat() %>%
+  get_upper_tri() %>%
+  round(., 2) %>%
+  reshape2::melt(, na.rm = T) %>%
+  ggplot() +
+  aes(x = Var1, y = Var2, fill = value) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0, limit = c(-1,1), space = "Lab", name="Pearson\nCorrelation") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(vjust = 1, size = 12, hjust = 1, angle = 45),
+        axis.text.y = element_text(vjust = 1, size = 12, hjust = 1)) +
+  coord_fixed()
+```
+
+```{r, echo = F, message = F, warning = F}
+database = data_b %>%
+  select(-codgeo) %>%
+  drop_na() %>%
+  cor() %>%
+  reorder_cormat() %>%
+  get_upper_tri() %>%
+  round(., 2) %>%
+  reshape2::melt(, na.rm = T) %>%
+  filter(Var1 != Var2 & (value > seuil | value < -seuil)) %>%
+  data.frame()
+
+nodes = data.frame(label = database$Var1) %>%
+  bind_rows(data.frame(label = database$Var2)) %>%
+  unique() %>%
+  mutate(id = row_number())
+
+edges = database %>%
+  inner_join(nodes, by = c("Var1" = "label")) %>%
+  rename(from = id) %>%
+  inner_join(nodes, by = c("Var2" = "label")) %>%
+  rename(to = id) %>%
+  select(from, to)
+
+visNetwork(nodes, edges) %>%
+  visOptions(highlightNearest = TRUE)
+```
+
+## Thématique Immigration
+
+```{r, echo = F, message = F, warning = F}
+read.csv("data/IMM_brut.csv") %>%
+  select(-c(codgeo, taux_cumu_1_inj)) %>%
+  desctable(stats = list("N" = length, "Med" = median, "IQR" = IQR)) %>%
+  pander()
+```
+
+```{r, echo = F, message = F, warning = F}
+data_b = read_csv("data/IMM_brut.csv") %>% select(codgeo,
+                                                  Immigrant,
+                                                  Immigrant_amg_Men,
+                                                  Immigrant_amg_Women)
+
+data_b %>%
+  select(-codgeo) %>%
+  drop_na() %>%
+  cor() %>%
+  reorder_cormat() %>%
+  get_upper_tri() %>%
+  round(., 2) %>%
+  reshape2::melt(, na.rm = T) %>%
+  ggplot() +
+  aes(x = Var1, y = Var2, fill = value) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0, limit = c(-1,1), space = "Lab", name="Pearson\nCorrelation") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(vjust = 1, size = 12, hjust = 1, angle = 45),
+        axis.text.y = element_text(vjust = 1, size = 12, hjust = 1)) +
+  coord_fixed()
+```
+
+```{r, echo = F, message = F, warning = F}
+database = data_b %>%
+  select(-codgeo) %>%
+  drop_na() %>%
+  cor() %>%
+  reorder_cormat() %>%
+  get_upper_tri() %>%
+  round(., 2) %>%
+  reshape2::melt(, na.rm = T) %>%
+  filter(Var1 != Var2 & (value > seuil | value < -seuil)) %>%
+  data.frame()
+
+nodes = data.frame(label = database$Var1) %>%
+  bind_rows(data.frame(label = database$Var2)) %>%
+  unique() %>%
+  mutate(id = row_number())
+
+edges = database %>%
+  inner_join(nodes, by = c("Var1" = "label")) %>%
+  rename(from = id) %>%
+  inner_join(nodes, by = c("Var2" = "label")) %>%
+  rename(to = id) %>%
+  select(from, to)
+
+visNetwork(nodes, edges) %>%
+  visOptions(highlightNearest = TRUE)
+```
+
+## Thématique Géographie
+
+```{r, echo = F, message = F, warning = F}
+read.csv("data/GEO_brut.csv") %>%
+  select(-c(codgeo, taux_cumu_1_inj, lat01, lon01)) %>%
+  desctable(stats = list("N" = length, "Med" = median, "IQR" = IQR)) %>%
+  pander()
+```
+
+```{r, echo = F, message = F, warning = F}
+data_b = read_csv("data/GEO_brut.csv") %>% select(codgeo, latitude, longitude, densite, `SO-NE`, `NO-SE`)
+
+data_b %>%
+  select(-codgeo) %>%
+  drop_na() %>%
+  cor() %>%
+  reorder_cormat() %>%
+  get_upper_tri() %>%
+  round(., 2) %>%
+  reshape2::melt(, na.rm = T) %>%
+  ggplot() +
+  aes(x = Var1, y = Var2, fill = value) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0, limit = c(-1,1), space = "Lab", name="Pearson\nCorrelation") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(vjust = 1, size = 12, hjust = 1, angle = 45),
+        axis.text.y = element_text(vjust = 1, size = 12, hjust = 1)) +
+  coord_fixed()
+```
+
+```{r, echo = F, message = F, warning = F}
+database = data_b %>%
+  select(-codgeo) %>%
+  drop_na() %>%
+  cor() %>%
+  reorder_cormat() %>%
+  get_upper_tri() %>%
+  round(., 2) %>%
+  reshape2::melt(, na.rm = T) %>%
+  filter(Var1 != Var2 & (value > seuil | value < -seuil)) %>%
+  data.frame()
+
+nodes = data.frame(label = database$Var1) %>%
+  bind_rows(data.frame(label = database$Var2)) %>%
+  unique() %>%
+  mutate(id = row_number())
+
+edges = database %>%
+  inner_join(nodes, by = c("Var1" = "label")) %>%
+  rename(from = id) %>%
+  inner_join(nodes, by = c("Var2" = "label")) %>%
+  rename(to = id) %>%
+  select(from, to)
+
+visNetwork(nodes, edges) %>%
+  visOptions(highlightNearest = TRUE)
+```
+
+## Traitement des données manquantes et des fortes corrélations
+
+On retire de l'étude les variables ayant plus de 5% de données manquantes : c'est à dire les variables dont le N est inférieur à 1492 observations.
+
+De plus, quand deux variables sont fortement corrélées (à plus de 95%), on n'en garde qu'une des deux.
+
+Ces deux tris successifs permettent de réduire le nombre de variables de l'étude à **181 variables** à partir des 302 variables d'origine.
+
+## Variables retenues dans l'étude
+
+```{r, warning = F, echo = F, message = F}
+read.csv("data/LOG_brut.csv") %>%
+  select(c(1, 2, 4, 6:7, 10:32, 34:36, 38:42)) %>%
+  inner_join(read.csv("data/EMP_brut.csv") %>%
+               select(c(1, 2:6, 8, 10:13, 17, 19, 21, 23, 25, 27:28, 31:33, 36:52, 55, 58:59, 63))) %>%
+  inner_join(read.csv("data/FAM_brut.csv") %>%
+               select(c(1, 2:5, 8:18, 23, 33, 38, 40:48))) %>%
+  inner_join(read.csv("data/REV_brut.csv") %>%
+               select(c(1, 2:6, 8, 16, 18:24, 26))) %>%
+  inner_join(read.csv("data/ACT_brut.csv") %>%
+               select(c(1, 2:13))) %>%
+  inner_join(read.csv("data/FOR_brut.csv") %>%
+               select(c(1, 2:13, 16, 19, 23, 25:28))) %>%
+  inner_join(read.csv("data/POP_brut.csv") %>%
+               select(c(1, 4:6, 8:20, 22, 27, 34:35, 38, 40, 50, 53:54, 56))) %>%
+  inner_join(read.csv("data/IMM_brut.csv") %>%
+               select(1, 4)) %>%
+  inner_join(read.csv("data/GEO_brut.csv") %>%
+               select(c(1, 2:4, 8:9))) %>%
+  select(-1) %>%
+  desctable() %>%
+  pander()
+```
+
+
+# Manhattan
+
+## Dates clés de la vaccination en France
+
+- **6 février 2021 (S05)** : La vaccination a été ouverte à l'ensemble des professionnels de santé et du secteur médico-social, aux aides à domicile intervenant auprès de personnes vulnérables et aux pompiers quel que soit leur âge.
+- **19 février 2021 (S07)** : La vaccination est ouverte aux personnes de 50 à 64 ans inclus à risque de formes graves de Covid-19, comme par exemple le diabète ou l'obésité, qui peuvent être vaccinées dans leurs structures de soins, notamment à l'hôpital. Depuis le 25 février 2021, elles peuvent se faire vacciner directement chez un médecin de ville.
+- **2 mars 2021 (S09)** : les personnes âgées de plus de 75 ans peuvent être vaccinées par le vaccin AstraZeneca chez un médecin de ville (spécialiste ou médecin généraliste).
+- **15 mars 2021 (S11)** : la vaccination en pharmacie est possible pour les personnes de plus de 50 ans atteintes de comorbidités. Les patients éligibles au vaccin AstraZeneca n'auront pas besoin d'une prescription médicale et pourront se rendre directement en officine.
+- **25 mars 2021 (S12)** : toutes les personnes âgées de 70 ans et plus peuvent obtenir des rendez-vous en centre de vaccination pour y recevoir le vaccin Moderna ou Pfizer-BioNtech à partir du samedi 27 mars 2021. Celles qui sont éligibles au vaccin AstraZeneca peuvent être vaccinées chez un pharmacien ou un médecin de ville (médecin généraliste, médecin spécialiste, ou médecin du travail).
+- **12 avril 2021 (S15)** : les personnes de 55 ans et plus quel que soit leur lieu de vie et leur état de santé (avec ou sans comorbidités) peuvent être vaccinées chez un pharmacien, un infirmier ou un médecin de ville (médecin généraliste, médecin spécialiste, ou médecin du travail) avec le vaccin Vaxzevria (AstraZeneca).
+- **16 avril 2021 (S15)** : les personnes de 60 à 69 ans et plus bénéficient de l'extension de la campagne vaccinale par Pfizer et Moderna (en centre de vaccination).
+- **1er mai 2021 (S17)** : les personnes de plus de 18 à 49 ans souffrant de comorbidité(s) peuvent être vaccinées en centre de vaccination par Pfizer et Moderna, sur déclaration de leur(s) comorbidité(s) et sans avoir à présenter une prescription médicale.
+- **10 mai 2021 (S19)** : les personnes de 50 ans et plus quel que soit leur lieu de vie et leur état de santé (avec ou sans comorbidités) peuvent être vaccinées en centre de vaccination par Pfizer et Moderna.
+- **12 mai 2021 (S19)** : toutes les personnes de 18 à 49 ans peuvent prendre rendez-vous pour se faire vacciner en centre de vaccination pour des injections avec les vaccins Pfizer-BioNTech ou Moderna ayant lieu le jour même ou le lendemain.
+- **27 mai 2021 (S21)** : toutes les personnes majeures peuvent prendre rendez-vous pour se faire vacciner en centre de vaccination pour des injections avec les vaccins Pfizer-BioNTech ou Moderna à compter du 31 mai 2021.
+- **15 juin 2021 (S24)** : les 12 à 17 ans inclus ans peuvent se faire vacciner avec le vaccin Pfizer-BioNTech en centre de vaccination. Le 24 juillet 2021, l'Agence européenne du médicament (EMA) a délivré une autorisation du vaccin Moderna sur lequel la HAS a rendu un avis favorable le 28 juillet.
+- **12 juillet 2021 (S28)** : annonce du président le la république concernant la mise en place du pass sanitaire.
+- **9 août 2021 (S32)** : mise en place de l'obligation du passe sanitaire dans les lieux concernés.
+- **1er septembre 2021 (S35)** : une campagne de rappel est mise en place pour stimuler le système immunitaire des plus vulnérables : les résidents d'EHPAD et d'USLD, les personnes de 65 ans et plus vivant à domicile, les personnes souffrant de comorbidité(s), les personnes atteintes de pathologies à haut risque de forme grave, les personnes ayant été vaccinées avec le vaccin Janssen.
+- **15 septembre 2021 (S37)** : l'obligation vaccinale concernerait tous les personnels des établissements de santé, établissements d'hébergement pour personnes âgées dépendantes (Ehpad) et établissements pour personnes en situation de handicap et tous les professionnels ou les bénévoles en contact avec des personnes âgées ou vulnérables, y compris à domicile. Cette mesure a fait l'objet d'un projet de loi relatif à la gestion de la crise sanitaire examiné par le Parlement depuis le 20 juillet 2021.
+
+## Protocole
+
+Pour construire les graphiques suivants, chaque variable a été dichotomisée par rapport à la médiane (`1` pour supérieur à la médiane et `0` pour inférieur à la médiane).
+
+Pour chaque semaine de l'année 2021, les 25 % des territoires les moins vaccinés sont étiquetés `1` et les autres `0`.
+
+On calcule l'odds ratio pour chaque variable. Cela permet de repérer les variables qui agissent le plus sur le taux de vaccination.
+
+Dans ls graphique suivants, chaque variable a une position fixe sur l'axe des abscisses.
+
+L'axe des ordonnées représente le maximum entre l'odds ratio et son inverse. Ainsi une variable qui agit fortement sur le taux de vaccination aura une position élevée sur le graphque indépendamment de l'influence positive ou négative de son influence. Les variables sont classées par thématique.
+
+La grosseur de chaque point est proportionnelle à $-\log_{10}(p)$.
+
+Puis pour connaître l'influence de chaque variable, on ne trace uniquement l'odds ratio et enfin son inverse.
+
+Une variable tracée avec un triangle pointe en gaut indique que plus la valeur de la variable est élevée, plus le territoire est vacciné.
+À l'inverse, si la variable est symbolisée avec un triangle pointe en bas, une valeur élevée de la variable indique un territoire moins vacciné.
+
+## Données cumulées
+
+```{r, echo = F, message = F, warning = F}
+data = NULL
+for (i in c(27, 31, 35)){
+  data = plyr::rbind.fill(
+    data,
+    make_data_covid(i) %>%
+      arrange(theme, id) %>%
+      mutate (pos = row_number(),
+              week = i)
+  )
+}
+```
+
+```{r, echo = F, message = F, warning = F}
+ylim = max(data$`max_OR-inv_OR`[is.finite(data$`max_OR-inv_OR`)], na.rm = T)
+
+fig = data %>%
+  mutate(shape = if_else(OR > 1, 219, 220)) %>%
+  mutate(inf = if_else(OR > 1, `2.5 %`, `inv_2.5 %`),
+         sup = if_else(OR > 1, `97.5 %`, `inv_97.5 %`),
+         value = (sup-inf))
+# filter(week == 33) %>%
+# arrange(OR) %>%
+# mutate(pos2 = row_number()) %>%
+# select(Variable, pos) %>%
+# inner_join(data) %>%
+
+plot_ly(
+  fig,
+  x = ~pos,
+  y = ~`max_OR-inv_OR`,
+  size = ~-log10(p),
+  color = ~theme,
+  frame = ~week,
+  text = ~Variable,
+  alpha = 0.75,
+  symbol = ~shape,
+  symbols = c(219, 220),
+  hooverinfo = "text",
+  type = "scatter",
+  mode = "markers"
+  # error_y = list(array = ~inf,
+  #                arrayminus = ~sup,
+  #                symmetric = FALSE,
+  #                type = "data")
+) %>%
+  layout(
+    xaxis = list(title = "Variable"),
+    yaxis = list(title = "max(OR, 1/OR)"))
+
+for (wk in c(27, 31, 35)){
+  if (wk == 35){
+    assign(paste0("p", wk),
+           fig %>%
+             filter(week == wk) %>%
+             ggplot() +
+             aes(x = pos, y = `max_OR-inv_OR`, color = theme, ymin = inf, ymax = sup) +
+             geom_pointrange() +
+             theme_minimal() +
+             labs(title = paste("OR for the whole population - week", wk),
+                  x = "",
+                  y = "max(OR, 1/OR)"))
+  }else{
+    assign(paste0("p", wk),
+           fig %>%
+             filter(week == wk) %>%
+             ggplot() +
+             aes(x = pos, y = `max_OR-inv_OR`, color = theme, ymin = inf, ymax = sup) +
+             geom_pointrange() +
+             theme_minimal() +
+             theme(legend.position = "none") +
+             labs(title = paste("OR for the whole population - week", wk),
+                  x = "",
+                  y = "max(OR, 1/OR)") )
+  }
+}
+print(p27)
+print(p31)
+print(p35)
+```
+
+### Distributions des Odds ratios
+
+```{r, message = F, echo = F, warning = F}
+data %>%
+  mutate(week = factor(week)) %>%
+  ggplot() +
+  aes(x = `max_OR-inv_OR`, y = ..density.., color = week) +
+  geom_density(kernel = "gaussian") +
+  theme_bw() +
+  labs(title = "Distribution of max(OR, 1/OR) over every variable",
+       x = "max(OR, 1/OR)")
+
+# data %>%
+#   filter(week %in% c(27, 31, 35)) %>%
+#   mutate(week = factor(week)) %>%
+#   ggplot() +
+#   aes(x = log(`max_OR-inv_OR`), y = ..density.., color = week) +
+#   geom_density(kernel = "gaussian") +
+#   theme_bw() +
+#   labs(title = "Distribution of log(max(OR, 1/OR)) over every variable",
+#        x = "log(max(OR, 1/OR))")
+```
+
+### Test de Wilcoxon
+
+```{r, message = F, echo = F, warning = F}
+w1 = data %>%
+  filter(week %in% c(27, 31)) %>%
+  mutate(week = factor(week)) %>%
+  wilcox.test(`max_OR-inv_OR` ~ week, data = .)
+
+w2 = data %>%
+  filter(week %in% c(31, 35)) %>%
+  mutate(week = factor(week)) %>%
+  wilcox.test(`max_OR-inv_OR` ~ week, data = .)
+
+w3 = data %>%
+  filter(week %in% c(27, 35)) %>%
+  mutate(week = factor(week)) %>%
+  wilcox.test(`max_OR-inv_OR` ~ week, data = .)
+
+data.frame(Comparison = c("wk27_wk31", "wk31_wk35", "wk27_wk35"),
+           method = c(w1$method, w2$method, w3$method), p.value = c(w1$p.value, w2$p.value, w3$p.value)) %>%
+  pander()
+```
+
+# Par classe d'âge - données cumulées
+
+## 0 - 19 ans 
+
+```{r, echo = F, message = F, warning = F}
+data = NULL
+for (i in c(27, 31, 35)){
+  data = bind_rows(
+    data,
+    make_data_covid(i, classe_age = "00-19") %>%
+      arrange(theme, id) %>%
+      mutate (pos = row_number(),
+              week = i)
+  )
+}
+```
+
+```{r, echo = F, message = F, warning = F}
+ylim = max(data$`max_OR-inv_OR`[is.finite(data$`max_OR-inv_OR`)], na.rm = T)
+
+fig = data %>%
+  mutate(shape = if_else(OR > 1, 219, 220)) %>%
+  mutate(inf = if_else(OR > 1, `2.5 %`, `inv_2.5 %`),
+         sup = if_else(OR > 1, `97.5 %`, `inv_97.5 %`),
+         value = (sup-inf))
+
+plot_ly(
+  fig,
+  x = ~pos,
+  y = ~`max_OR-inv_OR`,
+  size = ~-log10(p),
+  color = ~theme,
+  frame = ~week,
+  text = ~Variable,
+  alpha = 0.75,
+  symbol = ~shape,
+  symbols = c(219, 220),
+  hooverinfo = "text",
+  type = "scatter",
+  mode = "markers"
+) %>%
+  layout(
+    xaxis = list(title = "Variable"),
+    yaxis = list(title = "max(OR, 1/OR)"))
+
+for (wk in c(27, 31, 35)){
+  print(
+    fig %>%
+      filter(week == wk) %>%
+      ggplot() +
+      aes(x = pos, y = `max_OR-inv_OR`, color = theme, ymin = inf, ymax = sup) +
+      geom_pointrange() +
+      theme_minimal() +
+      labs(title = paste("OR for the whole population, week", wk),
+           x = "",
+           y = "max(OR, 1/OR)")
+  )
+}
+```
+
+### Distributions des Odds ratios
+
+```{r, message = F, echo = F, warning = F}
+data %>%
+  filter(week %in% c(27, 31, 35)) %>%
+  mutate(week = factor(week)) %>%
+  ggplot() +
+  aes(x = `max_OR-inv_OR`, y = ..density.., color = week) +
+  geom_density(kernel = "gaussian") +
+  theme_bw() +
+  labs(title = "Distribution of max(OR, 1/OR) over every variable",
+       x = "max(OR, 1/OR)")
+```
+
+### Test de Wilcoxon
+
+```{r, message = F, echo = F, warning = F}
+w1 = data %>%
+  filter(week %in% c(27, 31)) %>%
+  mutate(week = factor(week)) %>%
+  wilcox.test(`max_OR-inv_OR` ~ week, data = .)
+
+w2 = data %>%
+  filter(week %in% c(31, 35)) %>%
+  mutate(week = factor(week)) %>%
+  wilcox.test(`max_OR-inv_OR` ~ week, data = .)
+
+w3 = data %>%
+  filter(week %in% c(27, 35)) %>%
+  mutate(week = factor(week)) %>%
+  wilcox.test(`max_OR-inv_OR` ~ week, data = .)
+
+data.frame(Comparison = c("wk27_wk31", "wk31_wk35", "wk27_wk35"),
+           method = c(w1$method, w2$method, w3$method), p.value = c(w1$p.value, w2$p.value, w3$p.value)) %>%
+  pander()
+```
+
+## 20 - 39 ans
+
+```{r, echo = F, message = F, warning = F}
+data = NULL
+for (i in c(27, 31, 35)){
+  data = bind_rows(
+    data,
+    make_data_covid(i, classe_age = "20-39") %>%
+      arrange(theme, id) %>%
+      mutate (pos = row_number(),
+              week = i)
+  )
+}
+```
+
+```{r, echo = F, message = F, warning = F}
+ylim = max(data$`max_OR-inv_OR`[is.finite(data$`max_OR-inv_OR`)], na.rm = T)
+
+fig = data %>%
+  mutate(shape = if_else(OR > 1, 219, 220)) %>%
+  mutate(inf = if_else(OR > 1, `2.5 %`, `inv_2.5 %`),
+         sup = if_else(OR > 1, `97.5 %`, `inv_97.5 %`),
+         value = (sup-inf))
+# filter(week == 33) %>%
+# arrange(OR) %>%
+# mutate(pos2 = row_number()) %>%
+# select(Variable, pos) %>%
+# inner_join(data) %>%
+
+plot_ly(
+  fig,
+  x = ~pos,
+  y = ~`max_OR-inv_OR`,
+  size = ~-log10(p),
+  color = ~theme,
+  frame = ~week,
+  text = ~Variable,
+  alpha = 0.75,
+  symbol = ~shape,
+  symbols = c(219, 220),
+  hooverinfo = "text",
+  type = "scatter",
+  mode = "markers"
+  # error_y = list(array = ~inf,
+  #                arrayminus = ~sup,
+  #                symmetric = FALSE,
+  #                type = "data")
+) %>%
+  layout(
+    xaxis = list(title = "Variable"),
+    yaxis = list(title = "max(OR, 1/OR)"))
+
+for (wk in c(27, 31, 35)){
+  print(
+    fig %>%
+      filter(week == wk) %>%
+      ggplot() +
+      aes(x = pos, y = `max_OR-inv_OR`, color = theme, ymin = inf, ymax = sup) +
+      geom_pointrange() +
+      theme_minimal() +
+      labs(title = paste("OR for the whole population, week", wk),
+           x = "",
+           y = "max(OR, 1/OR)")
+  )
+}
+```
+
+### Distributions des Odds ratios
+
+```{r, message = F, echo = F, warning = F}
+data %>%
+  mutate(week = factor(week)) %>%
+  ggplot() +
+  aes(x = `max_OR-inv_OR`, y = ..density.., color = week) +
+  geom_density(kernel = "gaussian") +
+  theme_bw() +
+  labs(title = "Distribution of max(OR, 1/OR) over every variable",
+       x = "max(OR, 1/OR)")
+
+# data %>%
+#   filter(week %in% c(27, 31, 35)) %>%
+#   mutate(week = factor(week)) %>%
+#   ggplot() +
+#   aes(x = log(`max_OR-inv_OR`), y = ..density.., color = week) +
+#   geom_density(kernel = "gaussian") +
+#   theme_bw() +
+#   labs(title = "Distribution of log(max(OR, 1/OR)) over every variable",
+#        x = "log(max(OR, 1/OR))")
+```
+
+### Test de Wilcoxon
+
+```{r, message = F, echo = F, warning = F}
+w1 = data %>%
+  filter(week %in% c(27, 31)) %>%
+  mutate(week = factor(week)) %>%
+  wilcox.test(`max_OR-inv_OR` ~ week, data = .)
+
+w2 = data %>%
+  filter(week %in% c(31, 35)) %>%
+  mutate(week = factor(week)) %>%
+  wilcox.test(`max_OR-inv_OR` ~ week, data = .)
+
+w3 = data %>%
+  filter(week %in% c(27, 35)) %>%
+  mutate(week = factor(week)) %>%
+  wilcox.test(`max_OR-inv_OR` ~ week, data = .)
+
+data.frame(Comparison = c("wk27_wk31", "wk31_wk35", "wk27_wk35"),
+           method = c(w1$method, w2$method, w3$method), p.value = c(w1$p.value, w2$p.value, w3$p.value)) %>%
+  pander()
+```
+
+## 40 - 54 ans
+
+```{r, echo = F, message = F, warning = F}
+data = NULL
+for (i in c(27, 31, 35)){
+  data = bind_rows(
+    data,
+    make_data_covid(i, classe_age = "40-54") %>%
+      arrange(theme, id) %>%
+      mutate (pos = row_number(),
+              week = i)
+  )
+}
+```
+
+```{r, echo = F, message = F, warning = F}
+ylim = max(data$`max_OR-inv_OR`[is.finite(data$`max_OR-inv_OR`)], na.rm = T)
+
+fig = data %>%
+  mutate(shape = if_else(OR > 1, 219, 220)) %>%
+  mutate(inf = if_else(OR > 1, `2.5 %`, `inv_2.5 %`),
+         sup = if_else(OR > 1, `97.5 %`, `inv_97.5 %`),
+         value = (sup-inf))
+# filter(week == 33) %>%
+# arrange(OR) %>%
+# mutate(pos2 = row_number()) %>%
+# select(Variable, pos) %>%
+# inner_join(data) %>%
+
+plot_ly(
+  fig,
+  x = ~pos,
+  y = ~`max_OR-inv_OR`,
+  size = ~-log10(p),
+  color = ~theme,
+  frame = ~week,
+  text = ~Variable,
+  alpha = 0.75,
+  symbol = ~shape,
+  symbols = c(219, 220),
+  hooverinfo = "text",
+  type = "scatter",
+  mode = "markers"
+  # error_y = list(array = ~inf,
+  #                arrayminus = ~sup,
+  #                symmetric = FALSE,
+  #                type = "data")
+) %>%
+  layout(
+    xaxis = list(title = "Variable"),
+    yaxis = list(title = "max(OR, 1/OR)"))
+
+for (wk in c(27, 31, 35)){
+  print(
+    fig %>%
+      filter(week == wk) %>%
+      ggplot() +
+      aes(x = pos, y = `max_OR-inv_OR`, color = theme, ymin = inf, ymax = sup) +
+      geom_pointrange() +
+      theme_minimal() +
+      labs(title = paste("OR for the whole population, week", wk),
+           x = "",
+           y = "max(OR, 1/OR)")
+  )
+}
+```
+
+### Distributions des Odds ratios
+
+```{r, message = F, echo = F, warning = F}
+data %>%
+  mutate(week = factor(week)) %>%
+  ggplot() +
+  aes(x = `max_OR-inv_OR`, y = ..density.., color = week) +
+  geom_density(kernel = "gaussian") +
+  theme_bw() +
+  labs(title = "Distribution of max(OR, 1/OR) over every variable",
+       x = "max(OR, 1/OR)")
+
+# data %>%
+#   filter(week %in% c(27, 31, 35)) %>%
+#   mutate(week = factor(week)) %>%
+#   ggplot() +
+#   aes(x = log(`max_OR-inv_OR`), y = ..density.., color = week) +
+#   geom_density(kernel = "gaussian") +
+#   theme_bw() +
+#   labs(title = "Distribution of log(max(OR, 1/OR)) over every variable",
+#        x = "log(max(OR, 1/OR))")
+```
+
+### Test de Wilcoxon
+
+```{r, message = F, echo = F, warning = F}
+w1 = data %>%
+  filter(week %in% c(27, 31)) %>%
+  mutate(week = factor(week)) %>%
+  wilcox.test(`max_OR-inv_OR` ~ week, data = .)
+
+w2 = data %>%
+  filter(week %in% c(31, 35)) %>%
+  mutate(week = factor(week)) %>%
+  wilcox.test(`max_OR-inv_OR` ~ week, data = .)
+
+w3 = data %>%
+  filter(week %in% c(27, 35)) %>%
+  mutate(week = factor(week)) %>%
+  wilcox.test(`max_OR-inv_OR` ~ week, data = .)
+
+data.frame(Comparison = c("wk27_wk31", "wk31_wk35", "wk27_wk35"),
+           method = c(w1$method, w2$method, w3$method), p.value = c(w1$p.value, w2$p.value, w3$p.value)) %>%
+  pander()
+```
+
+## 55 - 64 ans
+
+```{r, echo = F, message = F, warning = F}
+data = NULL
+for (i in c(27, 31, 35)){
+  data = bind_rows(
+    data,
+    make_data_covid(i, classe_age = "55-64") %>%
+      arrange(theme, id) %>%
+      mutate (pos = row_number(),
+              week = i)
+  )
+}
+```
+
+```{r, echo = F, message = F, warning = F}
+ylim = max(data$`max_OR-inv_OR`[is.finite(data$`max_OR-inv_OR`)], na.rm = T)
+
+fig = data %>%
+  mutate(shape = if_else(OR > 1, 219, 220)) %>%
+  mutate(inf = if_else(OR > 1, `2.5 %`, `inv_2.5 %`),
+         sup = if_else(OR > 1, `97.5 %`, `inv_97.5 %`),
+         value = (sup-inf))
+# filter(week == 33) %>%
+# arrange(OR) %>%
+# mutate(pos2 = row_number()) %>%
+# select(Variable, pos) %>%
+# inner_join(data) %>%
+
+plot_ly(
+  fig,
+  x = ~pos,
+  y = ~`max_OR-inv_OR`,
+  size = ~-log10(p),
+  color = ~theme,
+  frame = ~week,
+  text = ~Variable,
+  alpha = 0.75,
+  symbol = ~shape,
+  symbols = c(219, 220),
+  hooverinfo = "text",
+  type = "scatter",
+  mode = "markers"
+  # error_y = list(array = ~inf,
+  #                arrayminus = ~sup,
+  #                symmetric = FALSE,
+  #                type = "data")
+) %>%
+  layout(
+    xaxis = list(title = "Variable"),
+    yaxis = list(title = "max(OR, 1/OR)"))
+
+for (wk in c(27, 31, 35)){
+  print(
+    fig %>%
+      filter(week == wk) %>%
+      ggplot() +
+      aes(x = pos, y = `max_OR-inv_OR`, color = theme, ymin = inf, ymax = sup) +
+      geom_pointrange() +
+      theme_minimal() +
+      labs(title = paste("OR for the whole population, week", wk),
+           x = "",
+           y = "max(OR, 1/OR)")
+  )
+}
+```
+
+### Distributions des Odds ratios
+
+```{r, message = F, echo = F, warning = F}
+data %>%
+  mutate(week = factor(week)) %>%
+  ggplot() +
+  aes(x = `max_OR-inv_OR`, y = ..density.., color = week) +
+  geom_density(kernel = "gaussian") +
+  theme_bw() +
+  labs(title = "Distribution of max(OR, 1/OR) over every variable",
+       x = "max(OR, 1/OR)")
+
+# data %>%
+#   filter(week %in% c(27, 31, 35)) %>%
+#   mutate(week = factor(week)) %>%
+#   ggplot() +
+#   aes(x = log(`max_OR-inv_OR`), y = ..density.., color = week) +
+#   geom_density(kernel = "gaussian") +
+#   theme_bw() +
+#   labs(title = "Distribution of log(max(OR, 1/OR)) over every variable",
+#        x = "log(max(OR, 1/OR))")
+```
+
+### Test de Wilcoxon
+
+```{r, message = F, echo = F, warning = F}
+w1 = data %>%
+  filter(week %in% c(27, 31)) %>%
+  mutate(week = factor(week)) %>%
+  wilcox.test(`max_OR-inv_OR` ~ week, data = .)
+
+w2 = data %>%
+  filter(week %in% c(31, 35)) %>%
+  mutate(week = factor(week)) %>%
+  wilcox.test(`max_OR-inv_OR` ~ week, data = .)
+
+w3 = data %>%
+  filter(week %in% c(27, 35)) %>%
+  mutate(week = factor(week)) %>%
+  wilcox.test(`max_OR-inv_OR` ~ week, data = .)
+
+data.frame(Comparison = c("wk27_wk31", "wk31_wk35", "wk27_wk35"),
+           method = c(w1$method, w2$method, w3$method), p.value = c(w1$p.value, w2$p.value, w3$p.value)) %>%
+  pander()
+```
+
+## 65 - 74 ans
+
+```{r, echo = F, message = F, warning = F}
+data = NULL
+for (i in c(27, 31, 35)){
+  data = bind_rows(
+    data,
+    make_data_covid(i, classe_age = "65-74") %>%
+      arrange(theme, id) %>%
+      mutate (pos = row_number(),
+              week = i)
+  )
+}
+```
+
+```{r, echo = F, message = F, warning = F}
+ylim = max(data$`max_OR-inv_OR`[is.finite(data$`max_OR-inv_OR`)], na.rm = T)
+
+fig = data %>%
+  mutate(shape = if_else(OR > 1, 219, 220)) %>%
+  mutate(inf = if_else(OR > 1, `2.5 %`, `inv_2.5 %`),
+         sup = if_else(OR > 1, `97.5 %`, `inv_97.5 %`),
+         value = (sup-inf))
+# filter(week == 33) %>%
+# arrange(OR) %>%
+# mutate(pos2 = row_number()) %>%
+# select(Variable, pos) %>%
+# inner_join(data) %>%
+
+plot_ly(
+  fig,
+  x = ~pos,
+  y = ~`max_OR-inv_OR`,
+  size = ~-log10(p),
+  color = ~theme,
+  frame = ~week,
+  text = ~Variable,
+  alpha = 0.75,
+  symbol = ~shape,
+  symbols = c(219, 220),
+  hooverinfo = "text",
+  type = "scatter",
+  mode = "markers"
+  # error_y = list(array = ~inf,
+  #                arrayminus = ~sup,
+  #                symmetric = FALSE,
+  #                type = "data")
+) %>%
+  layout(
+    xaxis = list(title = "Variable"),
+    yaxis = list(title = "max(OR, 1/OR)"))
+
+for (wk in c(27, 31, 35)){
+  print(
+    fig %>%
+      filter(week == wk) %>%
+      ggplot() +
+      aes(x = pos, y = `max_OR-inv_OR`, color = theme, ymin = inf, ymax = sup) +
+      geom_pointrange() +
+      theme_minimal() +
+      labs(title = paste("OR for the whole population, week", wk),
+           x = "",
+           y = "max(OR, 1/OR)")
+  )
+}
+```
+
+### Distributions des Odds ratios
+
+```{r, message = F, echo = F, warning = F}
+data %>%
+  mutate(week = factor(week)) %>%
+  ggplot() +
+  aes(x = `max_OR-inv_OR`, y = ..density.., color = week) +
+  geom_density(kernel = "gaussian") +
+  theme_bw() +
+  labs(title = "Distribution of max(OR, 1/OR) over every variable",
+       x = "max(OR, 1/OR)")
+
+# data %>%
+#   filter(week %in% c(27, 31, 35)) %>%
+#   mutate(week = factor(week)) %>%
+#   ggplot() +
+#   aes(x = log(`max_OR-inv_OR`), y = ..density.., color = week) +
+#   geom_density(kernel = "gaussian") +
+#   theme_bw() +
+#   labs(title = "Distribution of log(max(OR, 1/OR)) over every variable",
+#        x = "log(max(OR, 1/OR))")
+```
+
+### Test de Wilcoxon
+
+```{r, message = F, echo = F, warning = F}
+w1 = data %>%
+  filter(week %in% c(27, 31)) %>%
+  mutate(week = factor(week)) %>%
+  wilcox.test(`max_OR-inv_OR` ~ week, data = .)
+
+w2 = data %>%
+  filter(week %in% c(31, 35)) %>%
+  mutate(week = factor(week)) %>%
+  wilcox.test(`max_OR-inv_OR` ~ week, data = .)
+
+w3 = data %>%
+  filter(week %in% c(27, 35)) %>%
+  mutate(week = factor(week)) %>%
+  wilcox.test(`max_OR-inv_OR` ~ week, data = .)
+
+data.frame(Comparison = c("wk27_wk31", "wk31_wk35", "wk27_wk35"),
+           method = c(w1$method, w2$method, w3$method), p.value = c(w1$p.value, w2$p.value, w3$p.value)) %>%
+  pander()
+```
+
+## 75 ans et plus
+
+```{r, echo = F, message = F, warning = F}
+data = NULL
+for (i in c(27, 31, 35)){
+  data = bind_rows(
+    data,
+    make_data_covid(i, classe_age = "75+et+%2B") %>%
+      arrange(theme, id) %>%
+      mutate (pos = row_number(),
+              week = i)
+  )
+}
+```
+
+```{r, echo = F, message = F, warning = F}
+ylim = max(data$`max_OR-inv_OR`[is.finite(data$`max_OR-inv_OR`)], na.rm = T)
+
+fig = data %>%
+  mutate(shape = if_else(OR > 1, 219, 220)) %>%
+  mutate(inf = if_else(OR > 1, `2.5 %`, `inv_2.5 %`),
+         sup = if_else(OR > 1, `97.5 %`, `inv_97.5 %`),
+         value = (sup-inf))
+# filter(week == 33) %>%
+# arrange(OR) %>%
+# mutate(pos2 = row_number()) %>%
+# select(Variable, pos) %>%
+# inner_join(data) %>%
+
+plot_ly(
+  fig,
+  x = ~pos,
+  y = ~`max_OR-inv_OR`,
+  size = ~-log10(p),
+  color = ~theme,
+  frame = ~week,
+  text = ~Variable,
+  alpha = 0.75,
+  symbol = ~shape,
+  symbols = c(219, 220),
+  hooverinfo = "text",
+  type = "scatter",
+  mode = "markers"
+  # error_y = list(array = ~inf,
+  #                arrayminus = ~sup,
+  #                symmetric = FALSE,
+  #                type = "data")
+) %>%
+  layout(
+    xaxis = list(title = "Variable"),
+    yaxis = list(title = "max(OR, 1/OR)"))
+
+for (wk in c(27, 31, 35)){
+  print(
+    fig %>%
+      filter(week == wk) %>%
+      ggplot() +
+      aes(x = pos, y = `max_OR-inv_OR`, color = theme, ymin = inf, ymax = sup) +
+      geom_pointrange() +
+      theme_minimal() +
+      labs(title = paste("OR for the whole population, week", wk),
+           x = "",
+           y = "max(OR, 1/OR)")
+  )
+}
+```
+
+### Distributions des Odds ratios
+
+```{r, message = F, echo = F, warning = F}
+data %>%
+  mutate(week = factor(week)) %>%
+  ggplot() +
+  aes(x = `max_OR-inv_OR`, y = ..density.., color = week) +
+  geom_density(kernel = "gaussian") +
+  theme_bw() +
+  labs(title = "Distribution of max(OR, 1/OR) over every variable",
+       x = "max(OR, 1/OR)")
+
+# data %>%
+#   filter(week %in% c(22, 27, 35)) %>%
+#   mutate(week = factor(week)) %>%
+#   ggplot() +
+#   aes(x = log(`max_OR-inv_OR`), y = ..density.., color = week) +
+#   geom_density(kernel = "gaussian") +
+#   theme_bw() +
+#   labs(title = "Distribution of log(max(OR, 1/OR)) over every variable",
+#        x = "log(max(OR, 1/OR))")
+```
+
+### Test de Wilcoxon
+
+```{r, message = F, echo = F, warning = F}
+w1 = data %>%
+  filter(week %in% c(27, 31)) %>%
+  mutate(week = factor(week)) %>%
+  wilcox.test(`max_OR-inv_OR` ~ week, data = .)
+
+w2 = data %>%
+  filter(week %in% c(31, 35)) %>%
+  mutate(week = factor(week)) %>%
+  wilcox.test(`max_OR-inv_OR` ~ week, data = .)
+
+w3 = data %>%
+  filter(week %in% c(27, 35)) %>%
+  mutate(week = factor(week)) %>%
+  wilcox.test(`max_OR-inv_OR` ~ week, data = .)
+
+data.frame(Comparison = c("wk27_wk31", "wk31_wk35", "wk27_wk35"),
+           method = c(w1$method, w2$method, w3$method), p.value = c(w1$p.value, w2$p.value, w3$p.value)) %>%
+  pander()
+```
+
+# Taux de vaccinations selon les modalités des 3 variables les plus discriminantes
+
+```{r, echo = F, message = F, warning = F}
+vacct = NULL
+
+for (wk in c(27, 31, 35)){
+  vacc_com = read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-commune/download/?format=csv&refine.semaine_injection=2021-", wk, "&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
+    mutate(codgeo = as.numeric(commune_residence)) %>%
+    mutate(week = wk) %>%
+    select(codgeo, classe_age, taux_cumu_1_inj, week)
+  
+  vacc = read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-", wk, "&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
+    mutate(codgeo = as.numeric(epci)) %>%
+    mutate(week = wk) %>%
+    select(codgeo, classe_age, taux_cumu_1_inj, week) %>%
+    plyr::rbind.fill(vacc_com)
+  
+  vacct = vacct %>% plyr::rbind.fill(vacc)
+}
+
+dfocus = read_csv("data/LOG_brut.csv") %>%
+  select(codgeo, Overcrowding_rate) %>%
+  mutate(Overcrowding_rate = factor(ntile(Overcrowding_rate, 4))) %>%
+  inner_join(read_csv("data/REV_fact.csv") %>%
+               select(codgeo, Unemployment_Benef, Interdecile_91_Ratio) %>%
+               mutate(Unemployment_Benef = factor(ntile(Unemployment_Benef, 4)),
+                      Interdecile_91_Ratio = factor(ntile(Interdecile_91_Ratio, 4)))) %>%
+  inner_join(vacct) %>%
+  filter(classe_age == "TOUT_AGE")
+# pivot_longer(cols = c(Overcrowding_rate, Unemployment_Benef, Interdecile_91_Ratio),
+#              names_to = "Variable",
+#              values_to = "half")
+```
+
+```{r, echo=F, message=FALSE, warning=FALSE}
+min = min(as.numeric(dfocus$taux_cumu_1_inj))
+max = max(as.numeric(dfocus$taux_cumu_1_inj))
+
+
+df_patch = dfocus %>%
+  # filter(week == wk) %>%
+  mutate(vaccination_rate = as.numeric(taux_cumu_1_inj)) %>%
+  pivot_longer(cols = c(Unemployment_Benef, Overcrowding_rate),
+               names_to = "Variable",
+               values_to = "quartile") %>%
+  filter(!is.na(quartile)) %>%
+  mutate(Week = factor(week),
+         Variable = if_else(Variable == "Unemployment_Benef", "Unemployment", "Overcrowding"))
+
+df_patch %>%
+  ggplot() +
+  aes(x=quartile, y=vaccination_rate, fill = Week) +
+  facet_grid(cols = vars(Variable)) +
+  scale_y_continuous(limits = c(min, max)) +
+  scale_fill_manual(values = c("#edf8b1", "#7fcdbb", "#2c7fb8")) +
+  geom_boxplot() +
+  theme_minimal() +
+  labs(y = "Vaccination rate",
+       x = "Quartile") +
+  theme(axis.text.x = element_text(size = 10),
+        axis.text.y = element_text(size = 10),
+        strip.text.x = element_text(size = 11),
+        legend.position = "top")
+
+
+
+
+# dfocus %>%
+#   filter(!is.na(half)) %>%
+#   group_by(classe_age, week, Variable, half) %>%
+#   summarise(population_carto = sum(population_carto, na.rm = T),
+#             effectif_cumu_1_inj = sum(effectif_cumu_1_inj, na.rm = T)) %>%
+#   ungroup() %>%
+#   mutate(taux_cumu_1_inj = effectif_cumu_1_inj/population_carto,
+#          Variable = paste(Variable, half)) %>%
+#   plot_ly(
+#     x = ~week,
+#     y = ~taux_cumu_1_inj,
+#     color = ~Variable,
+#     symbol = ~half,
+#     mode = "lines+markers",
+#     frame = ~classe_age 
+#   )
+
+
+ggsave(filename = "boxplots.pdf",
+       device = "pdf",
+       path = "plots",
+       width = 5*1.5,
+       height = 3*1.5)
+```
+
+```{r, echo=F, message=FALSE, warning=FALSE}
+df_patch %>% # DF qui m'a permis de tracer les boxplots de différentes couleurs
+  # colnames = c(codgeo, week, vaccination_rate, Variable, quartile)
+  filter(quartile %in% c(1, 4)) %>% # on ne garde que les quartiles 1 et 4
+  # pivot_wider( # + de colonnes
+  #   # Reshape : codgeo, variable, quartile, s27, s31, s35 -> taux de vaccination pour chaque semaine
+  #   id_cols = c(codgeo, Variable, week),
+  #   names_from = quartile,
+  #   values_from = vaccination_rate,
+  #   names_prefix = "q") %>%
+  # mutate(
+  #   # Calcul de la différence des taux de vaccination entre chaque semaine
+  #   s27_35 = s35-s27,
+  #   s27_31 = s31-s27,
+  #   s31_35 = s35-s31) %>%
+  # pivot_longer( # + de lignes
+  #   # Reshape : codgeo, Variable, quartile, comp (nom des variables calculées juste avant), diff (valeur calculée juste avant)
+  #   cols = c(s27_35, s27_31, s31_35),
+  #   names_to = "comp",
+  #   values_to = "diff") %>%
+  group_by(
+    # le calcul suivant se fera par variable, par quartile et par comparaison de semaine
+    Variable, quartile, week) %>% 
+  summarise(
+    # nombre de territoires
+    sample_size = n(),
+    # moyenne de la différence
+    Mean = mean(vaccination_rate),
+    # écart-type de la différence
+    sd = sd(vaccination_rate)) %>%
+  ungroup() %>% # étape technique qui ne change rien
+  mutate(
+    # Calcul des intervalles de confiance
+    Margin_Error = abs(qnorm(0.025))* sd/sqrt(sample_size),
+    Lower = Mean - Margin_Error,
+    Upper = Mean + Margin_Error,
+    week = as.factor(week),
+    Mean = Mean,
+    .keep = "unused") %>%
+  pivot_wider( # + de colonnes
+    # Reshape : Variable, comp, Mean_1, Mean_4, Lower_1, Lower_4, Upper_1, Upper_4 (moyennes, bornes inf, bornes sup des intervalles de confiances pour les quartiles 1 et 4)
+    id_cols = c(Variable, week),
+    names_from = quartile,
+    values_from = c(Mean, Lower, Upper)) %>%
+  mutate(
+    # Calcul des différences entre les moyennes, entre les bornes inf et entre les bornes sup
+    diff_mean = Mean_1 - Mean_4,
+    diff_lower = Lower_1 - Upper_4,
+    diff_upper = Upper_1 - Lower_4,
+    .keep = "unused") %>%
+
+ggplot() +
+  aes(x = week, y = diff_mean, ymin = diff_lower, ymax = diff_upper) + # sélection des différentes parties esthétiques
+  facet_grid(cols = vars(Variable)) + # séparation du graphe suivant des modalités
+  geom_point() + # nuage de points
+  geom_errorbar() + # intervalle de confiance
+  theme_minimal() + # couleur de fond
+  labs(title = "Confidence intervals of the difference of vaccination rate between Q1 and Q4",
+       y = "") # titres
+```
+
+```{r, echo=F, message=FALSE, warning=FALSE}
+# EPCI d'outremer
+siren_exclude = c(999999999, 249720061, 249720053, 200041788, 249710062,
+                  200044691, 249710070, 200018653, 200041507, 249710047,
+                  249730045, 249730052, 249730037, 200027548, 249740077,
+                  249740119, 249740093, 249740085, 249740101)
+wk = 35
+
+  vacc = read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-", wk, "&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
+    mutate(codgeo = as.numeric(epci)) %>%
+    mutate(week = wk)
+  
+vacc %>%
+  filter(!(codgeo %in% siren_exclude)) %>%
+  inner_join(pop %>% select(codgeo)) %>%
+  group_by(classe_age) %>%
+  summarise(population = sum(population_carto),
+            eff_cumu_1_inj = sum(effectif_cumu_1_inj, na.rm = T)) %>%
+  ungroup() %>%
+  mutate(tx_vax = eff_cumu_1_inj / population) %>% pander()
+```
+
+```{r}
+wk = 42
+
+  vacc = read_csv2(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-", wk, "&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
+    mutate(codgeo = as.numeric(epci)) %>%
+    mutate(week = wk)
+  
+vacc %>%
+  filter(!(codgeo %in% siren_exclude)) %>%
+  inner_join(pop %>% select(codgeo)) %>%
+  group_by(classe_age) %>%
+  summarise(population = sum(population_carto),
+            eff_cumu_1_inj = sum(effectif_cumu_1_inj, na.rm = T)) %>%
+  ungroup() %>%
+  mutate(tx_vax = eff_cumu_1_inj / population) %>% pander()
+```
+
+
+
+```{r, echo = F, warning = F, message = F}
+# mise en forme des différents graphiques
+
+library(patchwork)
+(p27 | p31 | p35) /
+  (q27 | q31 | q35 )
+
+(p27 / q27) + (p31 / q31) + (p35 / q35)
+```
+
+
+
+# Couverture vaccinale par tranche d'âge
+
+```{r, message = F, warning = F, echo = F}
+data = read_csv2(url("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-22&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B")) %>%
+  plyr::rbind.fill(read_csv2(url("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-27&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
+  plyr::rbind.fill(read_csv2(url("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-35&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B"))) %>%
+  plyr::rbind.fill(read_csv2(url("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-31&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B")))
+data = data %>%
+  filter(classe_age != "TOUT_AGE") %>%
+  group_by(semaine_injection, classe_age) %>%
+  summarise(population_carto = sum(population_carto),
+            effectif_cumu_1_inj = sum(effectif_cumu_1_inj, na.rm = T)) %>%
+  ungroup() %>%
+  mutate(taux_cumu_1_inj = round(100* effectif_cumu_1_inj / population_carto, 2)) %>%
+  pivot_wider(id_cols = semaine_injection, names_from = classe_age, values_from = taux_cumu_1_inj)
+# pivot_wider(id_cols = classe_age, names_from = semaine_injection, values_from = taux_cumu_1_inj)
+data %>%
+  pander()
+data %>%
+  amBarplot(x = "semaine_injection", y = c("00-19", "20-39", "40-54", "55-64", "65-74", "75 et +")) %>%
+  # amBarplot(x = "classe_age", y = c("2021-22", "2021-27", "2021-34")) %>%
+  amOptions(legend = TRUE, export = TRUE, main = "Couverture vaccinale par tranche d'âge et par semaine")
+```
+
+*Points d'attention sur les données de vaccination présentées*
+
+
+Il est possible qu’un patient ne reçoive qu’une injection et que sa vaccination soit ainsi terminée : cas des vaccins à une injection ou des patients ayant déjà été atteints par la Covid-19, par exemple ;
+
+La population de référence pour le calcul des effectifs de patients vaccinés et pour le calcul des taux est la population de la cartographie des pathologies et des dépenses de l’Assurance Maladie, et non la population recensée par l’Insee dont le découpage par tranche d’âge et par commune date de 2017 ;
+
+Seuls les patients vaccinés faisant partie de la population de la cartographie des pathologies et des dépenses de l’Assurance Maladie sont pris en compte dans les effectifs (> 95% des vaccinés) ;
+
+La répartition par EPCI n’est pas possible pour certains patients dont le département de résidence ou la commune est inconnu(e). Ces patients sont rattachés à l’EPCI « 999999999 » dans le jeu de données.
+
+A contrario : les données de Sante Publique France
+
+```{r, message = F, warning = F, echo = F}
+data = NULL
+
+for (i in 1:40){
+  if (i < 10){
+    i = paste0("0", i)
+  }
+  data = bind_rows(
+    data,
+    read.csv(url(paste0("https://datavaccin-covid.ameli.fr/explore/dataset/donnees-de-vaccination-par-epci/download/?format=csv&refine.semaine_injection=2021-", i, "&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B")), sep = ";")
+  )
+}
+
+data %>%
+  filter(population_carto != "NS" & classe_age == "TOUT_AGE") %>%
+  select(effectif_cumu_1_inj, population_carto, date, epci, classe_age) %>%
+  group_by(date) %>%
+  summarise(effectif_cumu_1_inj = sum(effectif_cumu_1_inj, na.rm = T),
+            population_carto = sum(as.numeric(population_carto))) %>%
+  ungroup() %>%
+  mutate(couv_dose1 = effectif_cumu_1_inj / population_carto,
+         source = "ameli",
+         jour = lubridate::ymd(date)) %>%
+  select(jour, couv_dose1, source)
+
+
+ggplotly(
+  read.csv(url("https://www.data.gouv.fr/fr/datasets/r/b273cf3b-e9de-437c-af55-eda5979e92fc"), sep = ";") %>%
+    group_by(jour) %>%
+    summarise(n_cum_dose1 = sum(n_cum_dose1, na.rm = T)) %>%
+    ungroup() %>%
+    mutate(couv_dose1 = n_cum_dose1 / 97114995,
+           jour = lubridate::ymd(jour),
+           source = "SPF") %>%
+    select(jour, couv_dose1, source) %>%
+    plyr::rbind.fill(data %>%
+                       filter(population_carto != "NS" & classe_age == "TOUT_AGE") %>%
+                       select(effectif_cumu_1_inj, population_carto, date, epci, classe_age) %>%
+                       group_by(date) %>%
+                       summarise(effectif_cumu_1_inj = sum(effectif_cumu_1_inj, na.rm = T),
+                                 population_carto = sum(as.numeric(population_carto))) %>%
+                       ungroup() %>%
+                       mutate(couv_dose1 = effectif_cumu_1_inj / population_carto,
+                              source = "ameli",
+                              jour = lubridate::ymd(date)) %>%
+                       select(jour, couv_dose1, source)) %>%
+    ggplot() +
+    aes(x=jour, y=couv_dose1, color = source) +
+    geom_line() +
+    theme_minimal() +
+    labs(title = "Différence dans les données publiques",
+         y = "Couverture vaccinale 1ère dose") +
+    scale_y_continuous(labels = scales::percent)
+)
+```
+
+Quand je retire les moins de 12 ans qui n'ont pas accès à la vaccination, j'arrive à 83,4% de la population qui est vaccinée.
+Je pense que SPF publie un pourcentage de personnes vaccinées parmi les personnes qui ont accès au vaccin...
+
+On se demande d'où vient la différence, les données de vaccination ou les données de population générale ?
+
+```{r, message = F, warning = F, echo = F}
+ggplotly(
+  read.csv(url("https://www.data.gouv.fr/fr/datasets/r/fa4ad329-14ec-4394-85a4-c5df33769dff"), sep = ";") %>%
+    mutate(jour = lubridate::ymd(jour),
+           source = "SPF") %>%
+    select(jour, n_cum_dose1, source) %>%
+    plyr::rbind.fill(data %>%
+                       filter(population_carto != "NS" & classe_age == "TOUT_AGE") %>%
+                       group_by(date) %>%
+                       summarise(effectif_cumu_1_inj = sum(effectif_cumu_1_inj, na.rm = T)) %>%
+                       ungroup() %>%
+                       mutate(n_cum_dose1 = effectif_cumu_1_inj,
+                              source = "ameli",
+                              jour = lubridate::ymd(date)) %>%
+                       select(jour, n_cum_dose1, source))%>%
+    ggplot() +
+    aes(x=jour, y=n_cum_dose1, color = source) +
+    geom_line() +
+    theme_minimal() +
+    labs(title = "Différence dans les données publiques",
+         y = "Nb vaccinations cumulées 1ère dose")
+)
+```
+
+```{r, message = F, warning = F, echo = F}
+ggplotly(
+  read.csv(url("https://www.data.gouv.fr/fr/datasets/r/fa4ad329-14ec-4394-85a4-c5df33769dff"), sep = ";") %>%
+    filter(couv_dose1 != 0) %>%
+    mutate(jour = lubridate::ymd(jour),
+           source = "SPF",
+           population_carto = n_cum_dose1*100/couv_dose1) %>%
+    select(jour, population_carto, source) %>%
+    plyr::rbind.fill(data %>%
+                       filter(population_carto != "NS" & classe_age == "TOUT_AGE") %>%
+                       select(population_carto, date, epci, classe_age) %>%
+                       group_by(date) %>%
+                       summarise(population_carto = sum(as.numeric(population_carto))) %>%
+                       ungroup() %>%
+                       mutate(source = "ameli",
+                              jour = lubridate::ymd(date)) %>%
+                       select(jour, population_carto, source)) %>%
+    ggplot() +
+    aes(x=jour, y=population_carto, color = source) +
+    geom_line() +
+    theme_minimal() +
+    labs(title = "Différence dans les données publiques",
+         y = "Estimation de la population française")
+)
+```
