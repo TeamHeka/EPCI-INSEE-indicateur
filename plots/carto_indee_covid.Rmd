@@ -1,0 +1,463 @@
+---
+title: "Carto"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, message = F, warning = F)
+```
+
+
+
+```{r cars}
+library(sf)
+library(tidyverse)
+library(plotly)
+library(viridis)
+library(leaflet)
+library(ggspatial)
+library(gridExtra)
+library(htmltools)
+```
+
+```{r}
+poly = st_read("georef-france-epci-millesime.shp")
+poly_com = st_read("georef-france-commune-arrondissement-municipal-millesime.shp")
+
+REV_brut = read_csv("REV_brut.csv")
+LOG_brut = read.csv("LOG_brut.csv")
+
+```
+
+```{r}
+poly$epci_code <- as.numeric(levels(poly$epci_code))[poly$epci_code]
+poly_com$com_arm_cur <- as.numeric(levels(poly_com$com_arm_cur))[poly_com$com_arm_cur]
+
+plot_REV = poly %>%
+  inner_join(REV_brut, by = c("epci_code" = "codgeo")) %>%
+  rename(codgeo = epci_code) %>%
+  plyr::rbind.fill(poly_com %>%
+                     inner_join(REV_brut, by = c("com_arm_cur" = "codgeo")) %>%
+                     rename(codgeo = com_arm_cur))
+
+plot_LOG = poly %>%
+  inner_join(LOG_brut, by = c("epci_code" = "codgeo")) %>%
+  rename(codgeo = epci_code) %>%
+  plyr::rbind.fill(poly_com %>%
+                     inner_join(LOG_brut, by = c("com_arm_cur" = "codgeo")) %>%
+                     rename(codgeo = com_arm_cur))
+```
+
+# Represent vaccination rate
+
+```{r}
+vacct = read_csv("vacc_rates4.csv")
+```
+
+```{r}
+plot_vacc = poly %>%
+  rename(codgeo = epci_code) %>%
+  plyr::rbind.fill(poly_com %>%
+                     rename(codgeo = com_arm_cur)) %>%
+  inner_join(vacct)
+```
+
+```{r}
+carto_vacc = function(wk){
+  vacc_sem = plot_vacc %>% filter(week == wk)
+  
+  min_r = min(vacc_sem$taux_cumu_1_inj, na.rm = T)
+  max_r = max(vacc_sem$taux_cumu_1_inj, na.rm = T)
+  
+  set_scale = function(x, min_r, max_r){
+    return((x-min_r)/(max_r-min_r))
+  }
+  
+  min_p = set_scale(min(vacc_sem[vacc_sem$epci_name == "Métropole du Grand Paris",]$taux_cumu_1_inj, na.rm = T), min_r, max_r)
+  max_p = set_scale(max(vacc_sem[vacc_sem$epci_name == "Métropole du Grand Paris",]$taux_cumu_1_inj, na.rm = T), min_r, max_r)
+  
+  min_l = set_scale(min(vacc_sem[vacc_sem$epci_name == "Métropole de Lyon",]$taux_cumu_1_inj, na.rm = T), min_r, max_r)
+  max_l = set_scale(max(vacc_sem[vacc_sem$epci_name == "Métropole de Lyon",]$taux_cumu_1_inj, na.rm = T), min_r, max_r)
+  
+  min_m = set_scale(min(vacc_sem[vacc_sem$epci_name == "Métropole d'Aix-Marseille-Provence",]$taux_cumu_1_inj, na.rm = T), min_r, max_r)
+  max_m = set_scale(max(vacc_sem[vacc_sem$epci_name == "Métropole d'Aix-Marseille-Provence",]$taux_cumu_1_inj, na.rm = T), min_r, max_r)
+  
+  p1 = vacc_sem %>%
+    ggplot() +
+    aes(fill = taux_cumu_1_inj) +
+    scale_fill_viridis(name = paste("Vaccination Rate\nWeek", wk),option = "cividis") +
+    geom_sf(size = 0)  +
+    theme_void() +
+    theme(legend.position = "top") +
+    coord_sf(crs = st_crs(4326)) +
+    labs(title = "France")
+  
+  p2 = vacc_sem %>%
+    filter(epci_name == "Métropole du Grand Paris") %>%
+    ggplot() +
+    aes(fill = taux_cumu_1_inj) +
+    scale_fill_viridis(option = "cividis", begin = min_p, end = max_p) +
+    geom_sf(size = 0)  +
+    theme_void() +
+    theme(legend.position = "None") +
+    coord_sf(crs = st_crs(4326)) +
+    labs(title = "Paris")
+  
+  p3 = vacc_sem %>%
+    filter(epci_name == "Métropole de Lyon") %>%
+    ggplot() +
+    aes(fill = taux_cumu_1_inj) +
+    scale_fill_viridis(option = "cividis", begin = min_l, end = max_l) +
+    geom_sf(size = 0)  +
+    theme_void() +
+    theme(legend.position = "None") +
+    coord_sf(crs = st_crs(4326)) +
+    labs(title = "Lyon")
+  
+  p4 = vacc_sem %>%
+    filter(epci_name == "Métropole d'Aix-Marseille-Provence") %>%
+    ggplot() +
+    aes(fill = taux_cumu_1_inj) +
+    scale_fill_viridis(option = "cividis", begin = min_m, end = max_m) +
+    geom_sf(size = 0)  +
+    theme_void() +
+    theme(legend.position = "None") +
+    coord_sf(crs = st_crs(4326)) +
+    labs(title = "Marseille-Aix")
+  
+  return(grid.arrange(p1, p2, p3, p4,
+                      widths = c(4,1,1,1),
+                      layout_matrix = rbind(c(1, 2),
+                                            c(1, 3),
+                                            c(1, 4))))
+}
+```
+
+
+```{r}
+carto_vacc(27)
+carto_vacc(31)
+carto_vacc(35)
+carto_vacc(52)
+```
+
+
+# Represent Unemployment
+
+```{r}
+min_r = min(plot_REV$Unemployment_Benef, na.rm = T)
+max_r = max(plot_REV$Unemployment_Benef, na.rm = T)
+
+set_scale = function(x, min_r, max_r){
+  return((x-min_r)/(max_r-min_r))
+}
+
+min_p = set_scale(min(plot_REV[plot_REV$epci_name == "Métropole du Grand Paris",]$Unemployment_Benef, na.rm = T), min_r, max_r)
+max_p = set_scale(max(plot_REV[plot_REV$epci_name == "Métropole du Grand Paris",]$Unemployment_Benef, na.rm = T), min_r, max_r)
+
+min_l = set_scale(min(plot_REV[plot_REV$epci_name == "Métropole de Lyon",]$Unemployment_Benef, na.rm = T), min_r, max_r)
+max_l = set_scale(max(plot_REV[plot_REV$epci_name == "Métropole de Lyon",]$Unemployment_Benef, na.rm = T), min_r, max_r)
+
+min_m = set_scale(min(plot_REV[plot_REV$epci_name == "Métropole d'Aix-Marseille-Provence",]$Unemployment_Benef, na.rm = T), min_r, max_r)
+max_m = set_scale(max(plot_REV[plot_REV$epci_name == "Métropole d'Aix-Marseille-Provence",]$Unemployment_Benef, na.rm = T), min_r, max_r)
+
+p1 = plot_REV %>%
+  ggplot() +
+  aes(fill = Unemployment_Benef) +
+  scale_fill_viridis(name = "Unemployment\nBenefits",option = "magma") +
+  geom_sf(size = 0)  +
+  theme_void() +
+  theme(legend.position = "top") +
+  coord_sf(crs = st_crs(4326)) +
+  labs(title = "France")
+
+p2 = plot_REV %>%
+  filter(epci_name == "Métropole du Grand Paris") %>%
+  ggplot() +
+  aes(fill = Unemployment_Benef) +
+  scale_fill_viridis(option = "magma", begin = min_p, end = max_p) +
+  geom_sf(size = 0)  +
+  theme_void() +
+  theme(legend.position = "None") +
+  coord_sf(crs = st_crs(4326)) +
+  labs(title = "Paris")
+
+p3 = plot_REV %>%
+  filter(epci_name == "Métropole de Lyon") %>%
+  ggplot() +
+  aes(fill = Unemployment_Benef) +
+  scale_fill_viridis(option = "magma", begin = min_l, end = max_l) +
+  geom_sf(size = 0)  +
+  theme_void() +
+  theme(legend.position = "None") +
+  coord_sf(crs = st_crs(4326)) +
+  labs(title = "Lyon")
+
+p4 = plot_REV %>%
+  filter(epci_name == "Métropole d'Aix-Marseille-Provence") %>%
+  ggplot() +
+  aes(fill = Unemployment_Benef) +
+  scale_fill_viridis(option = "magma", begin = min_m, end = max_m) +
+  geom_sf(size = 0)  +
+  theme_void() +
+  theme(legend.position = "None") +
+  coord_sf(crs = st_crs(4326)) +
+  labs(title = "Marseille-Aix")
+
+grid.arrange(p1, p2, p3, p4,
+             widths = c(4,1,1,1),
+             layout_matrix = rbind(c(1, 2),
+                                   c(1, 3),
+                                   c(1, 4)))
+```
+
+# Reprensent Overcrowding Rate
+
+```{r}
+min_r = min(plot_LOG$Overcrowding_rate, na.rm = T)
+max_r = max(plot_LOG$Overcrowding_rate, na.rm = T)
+
+set_scale = function(x, min_r, max_r){
+  return((x-min_r)/(max_r-min_r))
+}
+
+min_p = set_scale(min(plot_LOG[plot_LOG$epci_name == "Métropole du Grand Paris",]$Overcrowding_rate, na.rm = T), min_r, max_r)
+max_p = set_scale(max(plot_LOG[plot_LOG$epci_name == "Métropole du Grand Paris",]$Overcrowding_rate, na.rm = T), min_r, max_r)
+
+min_l = set_scale(min(plot_LOG[plot_LOG$epci_name == "Métropole de Lyon",]$Overcrowding_rate, na.rm = T), min_r, max_r)
+max_l = set_scale(max(plot_LOG[plot_LOG$epci_name == "Métropole de Lyon",]$Overcrowding_rate, na.rm = T), min_r, max_r)
+
+min_m = set_scale(min(plot_LOG[plot_LOG$epci_name == "Métropole d'Aix-Marseille-Provence",]$Overcrowding_rate, na.rm = T), min_r, max_r)
+max_m = set_scale(max(plot_LOG[plot_LOG$epci_name == "Métropole d'Aix-Marseille-Provence",]$Overcrowding_rate, na.rm = T), min_r, max_r)
+
+p1 = plot_LOG %>%
+  ggplot() +
+  aes(fill = Overcrowding_rate) +
+  scale_fill_viridis(name = "Overcrowding\nRate",option = "plasma") +
+  geom_sf(size = 0)  +
+  theme_void() +
+  theme(legend.position = "top") +
+  coord_sf(crs = st_crs(4326)) +
+  labs(title = "France")
+
+p2 = plot_LOG %>%
+  filter(epci_name == "Métropole du Grand Paris") %>%
+  ggplot() +
+  aes(fill = Overcrowding_rate) +
+  scale_fill_viridis(option = "plasma", begin = min_p, end = max_p) +
+  geom_sf(size = 0)  +
+  theme_void() +
+  theme(legend.position = "None") +
+  coord_sf(crs = st_crs(4326)) +
+  labs(title = "Paris")
+
+p3 = plot_LOG %>%
+  filter(epci_name == "Métropole de Lyon") %>%
+  ggplot() +
+  aes(fill = Overcrowding_rate) +
+  scale_fill_viridis(option = "plasma", begin = min_l, end = max_l) +
+  geom_sf(size = 0)  +
+  theme_void() +
+  theme(legend.position = "None") +
+  coord_sf(crs = st_crs(4326)) +
+  labs(title = "Lyon")
+
+p4 = plot_LOG %>%
+  filter(epci_name == "Métropole d'Aix-Marseille-Provence") %>%
+  ggplot() +
+  aes(fill = Overcrowding_rate) +
+  scale_fill_viridis(option = "plasma", begin = min_m, end = max_m) +
+  geom_sf(size = 0)  +
+  theme_void() +
+  theme(legend.position = "None") +
+  coord_sf(crs = st_crs(4326)) +
+  labs(title = "Marseille-Aix")
+
+grid.arrange(p1, p2, p3, p4,
+             widths = c(4,1,1,1),
+             layout_matrix = rbind(c(1, 2),
+                                   c(1, 3),
+                                   c(1, 4)))
+```
+
+
+# Interactive maps
+
+## Unemployment Benefits
+
+```{r}
+# Remove missing data
+plot_REV = plot_REV %>% filter(!is.na(Unemployment_Benef))
+
+# set colours
+pal = scales::gradient_n_pal(colours = c("lightblue", "black", "orange"),
+                             values = c(min(plot_REV$Unemployment_Benef),
+                                        median(plot_REV$Unemployment_Benef, na.rm = T),
+                                        max(plot_REV$Unemployment_Benef)))
+
+# we are representing the two layers (EPCI & Municipalities) separately
+plot_REV_epci = poly %>%
+  inner_join(REV_brut, by = c("epci_code" = "codgeo")) %>%
+  rename(codgeo = epci_code)
+plot_REV_com = poly_com %>%
+  inner_join(REV_brut, by = c("com_arm_cur" = "codgeo")) %>%
+  rename(codgeo = com_arm_cur)
+
+# apply colours
+plot_REV_epci$hex = pal(plot_REV_epci$Unemployment_Benef)
+plot_REV_com$hex = pal(plot_REV_com$Unemployment_Benef)
+
+# Build label
+plot_REV_epci = plot_REV_epci %>%
+  group_by(codgeo) %>%
+  mutate(lab = paste0("<p>", epci_name, "</p><p>Unemployment Benefits: ", round(Unemployment_Benef, 2), "%</p>")) %>%
+  ungroup()
+plot_REV_com = plot_REV_com %>%
+  group_by(codgeo) %>%
+  mutate(lab = paste0("<p>", com_arm_nam, "</p><p>Unemployment Benefits: ", round(Unemployment_Benef, 2), "%</p>")) %>%
+  ungroup()
+
+leaflet() %>%
+  addTiles() %>%
+  addPolygons(data = plot_REV_epci,
+              color = ~hex,
+              weight = 1,
+              opacity = 0.4,
+              fillOpacity = 0.5,
+              stroke = T,
+              highlight = highlightOptions(opacity = 0.8,
+                                           fillOpacity = 0.9,
+                                           bringToFront = T),
+              # label = lapply(plot_REV_epci$lab, HTML)
+              label = ~paste0("Unemployment Benefits: ", round(Unemployment_Benef, 2), "%")
+              ) %>%
+  addPolygons(data = plot_REV_com,
+              color = ~hex,
+              weight = 1,
+              opacity = 0.4,
+              fillOpacity = 0.5,
+              stroke = T,
+              highlight = highlightOptions(opacity = 0.8,
+                                           fillOpacity = 0.9,
+                                           bringToFront = T),
+              # label = lapply(plot_REV_com$lab, HTML)
+              label = ~paste0("Unemployment Benefits: ", round(Unemployment_Benef, 2), "%")
+              ) %>%
+  addProviderTiles("Stamen.TonerLite")
+```
+
+## Overcrowding rate 
+
+```{r}
+plot_LOG = plot_LOG %>% filter(!is.na(Overcrowding_rate))
+pal = scales::gradient_n_pal(colours = c("green", "black", "red"),
+                             values = c(min(plot_LOG$Overcrowding_rate),
+                                        median(plot_LOG$Overcrowding_rate, na.rm = T),
+                                        max(plot_LOG$Overcrowding_rate)))
+
+plot_LOG_epci = poly %>%
+  inner_join(LOG_brut, by = c("epci_code" = "codgeo")) %>%
+  rename(codgeo = epci_code)
+plot_LOG_com = poly_com %>%
+  inner_join(LOG_brut, by = c("com_arm_cur" = "codgeo")) %>%
+  rename(codgeo = com_arm_cur)
+
+plot_LOG_epci$hex = pal(plot_LOG_epci$Overcrowding_rate)
+plot_LOG_epci = plot_LOG_epci %>%
+  group_by(codgeo) %>%
+  mutate(lab = paste0("<p>", epci_name, "</p><p>Overcrowding rate: ", round(Overcrowding_rate, 2), "%</p>")) %>%
+  ungroup()
+plot_LOG_com$hex = pal(plot_LOG_com$Overcrowding_rate)
+plot_LOG_com = plot_LOG_com %>%
+  group_by(codgeo) %>%
+  mutate(lab = paste0("<p>", com_arm_nam, "</p><p>Overcrowding rate: ", round(Overcrowding_rate, 2), "%</p>")) %>%
+  ungroup()
+
+leaflet() %>%
+  addTiles() %>%
+  addPolygons(data = plot_LOG_epci,
+              color = ~hex,
+              weight = 1,
+              opacity = 0.4,
+              fillOpacity = 0.5,
+              stroke = T,
+              highlight = highlightOptions(opacity = 0.8,
+                                           fillOpacity = 0.9,
+                                           bringToFront = T),
+              # label = lapply(plot_LOG_epci$lab, HTML)
+              label = ~paste0("Overcrowding rate: ", round(Overcrowding_rate, 2), "%")
+              ) %>%
+  addPolygons(data = plot_LOG_com,
+              color = ~hex,
+              weight = 1,
+              opacity = 0.4,
+              fillOpacity = 0.5,
+              stroke = T,
+              highlight = highlightOptions(opacity = 0.8,
+                                           fillOpacity = 0.9,
+                                           bringToFront = T),
+              # label = lapply(plot_LOG_com$lab, HTML)
+              label = ~paste0("Overcrowding rate: ", round(Overcrowding_rate, 2), "%")
+              ) %>%
+  addProviderTiles("Stamen.TonerLite")
+```
+
+## Vaccination rate
+
+```{r}
+plot52 = plot_vacc %>%
+  filter(!is.na(taux_cumu_1_inj) & week == 52)
+
+pal = scales::gradient_n_pal(colours = c("purple", "black", "yellow"),
+                             values = c(min(plot52$taux_cumu_1_inj),
+                                        median(plot52$taux_cumu_1_inj, na.rm = T),
+                                        max(plot52$taux_cumu_1_inj)))
+
+plot_vacc_epci = poly %>%
+  inner_join(vacct %>% filter(week == 52), by = c("epci_code" = "codgeo")) %>%
+  rename(codgeo = epci_code)
+plot_vacc_com = poly_com %>%
+  inner_join(vacct %>% filter(week == 52), by = c("com_arm_cur" = "codgeo")) %>%
+  rename(codgeo = com_arm_cur)
+
+plot_vacc_epci$hex = pal(plot_vacc_epci$taux_cumu_1_inj)
+plot_vacc_com$hex = pal(plot_vacc_com$taux_cumu_1_inj)
+
+plot_vacc_epci = plot_vacc_epci %>%
+  group_by(codgeo) %>%
+  mutate(lab = paste0("<p>", epci_name, "</p><p>Vaccination rate week 52: ", round(taux_cumu_1_inj*100, 2), "%</p>")) %>%
+  ungroup()
+plot_vacc_com = plot_vacc_com %>%
+  group_by(codgeo) %>%
+  mutate(lab = paste0("<p>", com_arm_nam, "</p><p>Vaccination rate week 52: ", round(taux_cumu_1_inj*100, 2), "%</p>")) %>%
+  ungroup()
+
+leaflet() %>%
+  addTiles() %>%
+  addPolygons(data = plot_vacc_epci,
+              color = ~hex,
+              weight = 1,
+              opacity = 0.4,
+              fillOpacity = 0.5,
+              stroke = T,
+              highlight = highlightOptions(opacity = 0.8,
+                                           fillOpacity = 0.9,
+                                           bringToFront = T),
+              # label = lapply(plot_vacc_epci$lab, HTML)
+              label = ~paste0("Vaccination rate week 52: ", round(taux_cumu_1_inj*100, 2), "%")
+              ) %>%
+  addPolygons(data = plot_vacc_com,
+              color = ~hex,
+              weight = 1,
+              opacity = 0.4,
+              fillOpacity = 0.5,
+              stroke = T,
+              highlight = highlightOptions(opacity = 0.8,
+                                           fillOpacity = 0.9,
+                                           bringToFront = T),
+              # label = lapply(plot_vacc_com$lab, HTML)
+              label = ~paste0("Vaccination rate week 52: ", round(taux_cumu_1_inj*100, 2), "%")
+              ) %>%
+  addProviderTiles("Stamen.TonerLite")
+```
+
