@@ -1,0 +1,858 @@
+---
+title: "VaccinationIndicators"
+author: "FD"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Initializations
+
+```{r}
+rm(list = ls())
+
+# Package for odds ratios
+library("epitools")
+# Package for colors
+library("RColorBrewer")
+# Package for dynamical plots
+library("plotly")
+
+#library("igraph")
+```
+
+
+# Load data
+
+## Indicators
+
+```{r}
+# The data have been dealt with in "0_INSEE_predictors.R" and saved as RData
+load("../data/predictors.RData")
+
+# Load region information for the different EPCI
+regions <- read.csv("../data/geographic/EPCI_composition-communale.csv")
+head(regions)
+# Create dictionary 
+dic.reg <- regions$REG
+names(dic.reg) <- regions$EPCI
+```
+
+```{r}
+
+```
+
+## Vaccination data
+
+Note: The files can be downloaded again (for updates) by running "0_loadAmeliData.R"
+
+### EPCI
+
+```{r}
+vaccEPCI <- read.csv("../data/ameli_vaccination/vaccEPCI.csv", sep = ";")
+head(vaccEPCI)
+
+# Add region information
+vaccEPCI$region <- dic.reg[as.character(vaccEPCI$epci)]
+table(vaccEPCI$region, useNA = "ifany")  
+
+# Note: NAs correspond to unattributed locations
+unique(vaccEPCI[is.na(vaccEPCI$region), "epci"])
+
+# Exclude DROM using regional code
+vaccEPCI <- vaccEPCI[vaccEPCI$region > 9, ]
+
+# Exclude Metropoles for which we have Communes detail
+epci.PLM <- c(200054781, # Paris
+              200046977, # Lyon
+              200054807  # Marseille
+              )
+vaccEPCI <- vaccEPCI[which(!is.element(vaccEPCI$epci, epci.PLM)), ]
+
+# Rename some fields for future merging
+names(vaccEPCI)[c(3, 4)] <- c("codgeo", "libelle_geo")
+```
+
+### Communes
+
+```{r}
+vaccCom <- read.csv("../data/ameli_vaccination/vaccCom.csv", sep = ";")
+head(vaccCom)
+# Rename some fields for future merging
+names(vaccCom)[c(3, 4)] <- c("codgeo", "libelle_geo")
+
+# Merge vaccination data into a single dataset
+vacc <- rbind(vaccEPCI[, 1:16], vaccCom)
+
+# Clean memory
+rm(vaccCom, vaccEPCI)
+
+# Make sure that population sizes are numeric
+vacc$population_carto <- as.numeric(vacc$population_carto)
+
+```
+
+
+## Dates
+
+```{r}
+# Get all dates in the vaccination dataset
+vaccDates <- sort(unique(vacc$date))
+
+# Define specific dates
+date1 <- "2021-07-11" # Just before pass sanitaire announcement
+date2 <- "2021-08-08" # Just before pass sanitaire comes into force
+date3 <- "2021-08-29" # Before back to school
+date4 <- "2022-01-02" # Last date of the year
+```
+
+# Analysis
+
+## Some definitions of common functions
+
+### Quantiles
+
+Conversion to binary values depending on a quantile
+
+```{r}
+# Convert to binary values depending on a chosen threshold
+quantileConvert <- function(v, q){
+  # v vector to be converted
+  # q chosen quantile (between 0 and 1)
+  
+  # Compute the threshold value
+  # Rem: need to remove NAs
+  qval <- quantile(x = v, probs = q, na.rm = TRUE)
+  
+  # Return TRUE/FALSE depending on the position wrt the value, and change into 1/0
+  out <- ifelse(v < qval, 0, 1)
+  
+  out
+}
+
+# Convert to binary values, with respect to 2 threshold values
+quantilesConvert <- function(v, qmin = 0.1, qmax = 0.9){
+  # v vector to be converted
+  # qmin lower threshold value, data below it are coded 0
+  # qmax higher threshold value, data above it are coded 1
+  # and data between qmin and qmax are coded NA
+  
+  # Compute the threshold value
+  # Rem: need to remove NAs
+  qval <- quantile(x = v, probs = c(qmin, qmax), na.rm = TRUE)
+  
+  out <- rep(NA, length(v)) # Initialize output vector
+  out[v < qval[1]] <- 0 
+  out[v > qval[2]] <- 1
+  
+  out
+}
+```
+
+### Treatment of the indicators
+
+-  Discretization of the data with respect to quantiles
+
+```{r}
+# Function to discretize wrt to quantiles
+discretizeQ <- function(v, prbs = seq(0, 1, by = 0.05)){
+  # v     vector to discretize
+  # prbs  positions of the boundaries
+  
+  # Define quantiles
+  qq <- c(quantile(v, probs = prbs, na.rm = TRUE))
+  
+  # Extend the extreme values to make sure that they are included later
+  qq[1] <- 0.5 * qq[1] # 0%
+  qq[length(qq)] <- 1.5 * qq[length(qq)] # 100%
+  
+  # Add noise to avoid issues when data are too close
+  noise <- c(0, runif(length(prbs)-2, max = 10^(-6)), 0)
+  qq <- sort(qq + noise)
+  
+  # Put the values of v in the different classes
+  out <- cut(v, breaks = qq, right = FALSE, labels = FALSE)
+# table(out, useNA = "ifany")
+  out
+}
+```
+
+```{r, eval = FALSE}
+# Test
+for(pred in unique(names(dat.all)[-1])){
+  vv <- dat.all[, pred]
+  plot(discretizeQ(vv, prbs = seq(0, 1, by = 0.1)), vv, main = pred)
+}
+```
+
+
+### Treatment of the vaccination data
+
+-  Adjust the data
+
+```{r}
+adjustVacc <- function(r1, varVacc){
+  # r1  vaccination dataset for a given date, with all ages, but not "TOUT_AGE"
+  # varVacc  the vaccination variable that we want to investigate ("1_inj" or "termine")
+  
+  # Compute distribution of the population by age class
+  #   Population size of each age classs
+  distPop <- aggregate(r1$population_carto, by = list(classe_age = r1$classe_age), FUN = sum, na.rm = TRUE)
+  #   Proportions
+  distPop$propAgeClass <- distPop$x / sum(distPop$x)
+  
+  # Merge with vaccination data
+  rr1 <- merge(r1, distPop, by = "classe_age")
+  
+  # Compute adjusted rates, by weighting each by each by the proportion in the overall population
+  s1 <- aggregate(data.frame(taux_cumu = rr1[, paste0("taux_cumu_", varVacc)] * rr1$propAgeClass, population_carto = rr1$population_carto), by = list(codgeo = rr1$codgeo), FUN = sum, na.rm = TRUE)
+  # Compute adjusted numbers of vaccinated people
+  s1$n_cumu <- round(s1$taux_cumu * s1$population_carto)
+  
+  # Return the dataframe
+  s1
+}
+```
+
+-  Remove children
+
+```{r}
+adultVacc <- function(r1, varVacc){
+  # r1  vaccination dataset for a given date, with all ages, but not "TOUT_AGE"
+  # varVacc  the vaccination variable that we want to investigate ("1_inj" or "termine")
+  
+  # Remove children age class
+  rr1 <- r1[which(r1$classe_age != "00-19"), ]
+  
+  # Compute sums of effectifs by codgeo
+  s1 <- aggregate(data.frame(n_cumu = rr1[, paste0("effectif_cumu_", varVacc)], population_carto = rr1$population_carto), by = list(codgeo = rr1$codgeo), FUN = sum, na.rm = TRUE)
+  
+  # Compute taux
+  s1$taux_cumu <- s1$n_cumu / s1$population_carto
+  
+  # Return the dataframe
+  s1
+}
+```
+ 
+## Other functions
+
+```{r}
+invlogit <- function(x) exp(x)/(1 + exp(x))
+
+```
+
+
+## Parameters
+
+
+```{r}
+parms <- expand.grid(clAge = sort(unique(vacc$classe_age)), 
+                     varVacc = c("1_inj", "termine"), 
+                     varPred = names(dat.all[, -1]), 
+                     thedate = c(date1, date2, date3, date4), stringsAsFactors = FALSE)
+```
+
+
+## Odds ratios 
+
+### Function definitions
+
+```{r computeOR}
+# Function to compute odds ratio and p value
+computeOR <- function(pred, result, method = "fisher"){
+  # pred   vector of the predictor, dichotomized
+  # result vector of the result, dichotomized
+  # method one of c("midp", "fisher", "wald", "small"), see ?oddsratio
+  
+  # Compute contingency table
+  contTable <- table(pred, result)
+
+  # Compute OR and pval
+  or <- oddsratio(x = contTable, method = method)
+  # Format the output
+  out <- c(N = or$data[3, 3], or$measure[2, ], or$p.value[2, ])
+  
+  #print(or) # For debugging and double-checking
+  out
+}
+```
+
+```{r}
+getOR <- function(clAge, varVacc, varPred, thedate, thrVacc = 0.25, thrPred = 0.5){
+  # clAge age class
+  # varVacc variable for the vaccination data
+  # varPred variable for the predictor
+  # thedate date of the vaccination data
+  # thrVacc threshold value for dichotomizing vaccination data
+  # thrPred threshold value for dichotomizing predictor data
+  
+  # Subset vaccination data
+  r1 <- vacc[vacc$classe_age == clAge & vacc$date == thedate, ]
+
+  # Merge with predictor data
+  m1 <- merge(r1, dat.all[, c("codgeo", varPred)], by = "codgeo")
+
+  # Dichotomize the vectors
+  result <- quantileConvert(m1[, paste0("taux_cumu_", varVacc)], thrVacc)
+  pred <- quantileConvert(m1[, varPred], thrPred)
+
+  # Compute OR
+  computeOR(pred, result)
+#  output <- c(date = thedate, varVacc = varVacc, clAge = clAge, varPred = varPred, computeOR(pred, result))
+#  output
+}
+```
+
+
+
+
+```{r computeORCheck}
+# For debugging
+# clAge <- "TOUT_AGE"
+# varVacc <- "taux_cumu_1_inj"
+# varPred <- "Overcrowding_rate"
+# thedate <- date1
+# dataTransform <- "discretize"
+```
+
+### Computation
+
+```{r}
+# Compute for all combinations that we want
+# (Takes a few minutes)
+nrow(parms)
+output <- matrix(0, ncol = 7, nrow = nrow(parms))
+for(i in 1:nrow(parms)){
+  cat(i, "")
+  output[i, ] <- do.call(getOR, parms[i, ])
+}
+
+# For debugging
+getOR("TOUT_AGE", "1_inj", "Overcrowding_rate", date1, thrVacc = 0.25, thrPred = 0.5)
+  
+  
+# Add the parameter information
+mm <- cbind(parms, output)
+
+names(mm) <- c("clAge", "varVacc", "varPred", "thedate", "N", "estimate", "lower", "upper", "midp.exact", "fisher.exact", "chi.square")
+
+# Save the output
+save(mm, file = "output_OR.RData")
+```
+
+
+## Anova
+
+### Function definitions
+
+```{r}
+anovaVacc <- function(clAge, varVacc, varPred, thedate, thrPred = c(0.1, 0.9)){
+  # clAge age class
+  # varVacc variable for the vaccination data
+  # varPred variable for the predictor
+  # thedate date of the vaccination data
+  # thrPred threshold value(s) for dichotomizing predictor data
+  #         if one value, all data are binarized as 0: v<q, 1: v>=q
+  #         if two values, 0: v<q1, NA: q1<= v <=q2, 1: v>q2
+          
+  
+  # Subset vaccination data
+  r1 <- vacc[vacc$classe_age == clAge & vacc$date == thedate, ]
+  
+  # Merge with predictor data
+  m1 <- merge(r1, dat.all[, c("codgeo", varPred)], by = "codgeo")
+  
+  # Dichotomize the vector
+  if(length(thrPred) == 1){
+    m1$pred <- quantileConvert(m1[, varPred], thrPred)
+  }else{
+    m1$pred <- quantilesConvert(m1[, varPred], thrPred[1], thrPred[2])
+  }
+  m1$res <- m1[, paste0("taux_cumu_", varVacc)]
+  
+  aov(res ~ pred, data = m1)
+}
+```
+
+### Computation
+
+```{r}
+mdl <- anovaVacc("TOUT_AGE", "1_inj", "Overcrowding_rate", date3)
+(mdl$coefficients)[["pred"]]
+summary(mdl)
+
+effect3 <- rep(0, ncol(dat.all)-1)
+for(i in 2:ncol(dat.all)){
+  mdl <- anovaVacc("TOUT_AGE", "1_inj", names(dat.all)[i], date3)
+  effect3[i-1] <- (mdl$coefficients)[["pred"]]
+}
+
+summary(mdl)
+```
+
+
+
+## Logistic regression 
+
+### Function definitions
+```{r}
+# Function to do a logistic regression on one of the variables
+getLogReg <- function(varVacc, varPred, thedate, predTransform, vaccAge, by.prbs = 0.1, permutation = FALSE){
+  # 
+  # varVacc  takes values "1_inj" or "termine"
+  # varPred  is the predictor value to be used
+  # thedate  date at which the calculations are done
+  # predTransform: how to deal with the predictor values 
+  #                "standardize_msd", "standardize_max" or "discretize"
+  # vaccAge: "raw_rates" if raw vaccination rates, without taking age into account
+  #          "by_age" if model takes age into account
+  #          "adjusted_rates" if adjusted vaccination rates
+  #          "adults" all ages except 00-19
+  # by.prbs  if "discretize", distance between breaks of the discretization
+  
+  # Check data entry
+  stopifnot(is.element(predTransform, c("standardize_msd", "standardize_max", "discretize")))
+  stopifnot(is.element(varVacc, c("1_inj", "termine")))
+  stopifnot(is.element(vaccAge, c("raw_rates", "by_age", "adjusted_rates", "adults")))
+  
+  if(vaccAge == "raw_rates"){
+    # Subset vaccination data; keep only ALL_AGE
+    r1 <- vacc[vacc$classe_age == "TOUT_AGE" & vacc$date == thedate, ]
+    # Rename columns
+    r1$taux_cumu <- r1[, paste0("taux_cumu_", varVacc)]
+    r1$n_cumu <- r1[, paste0("effectif_cumu_", varVacc)]
+  }
+  if(vaccAge == "by_age"){
+    # Subset vaccination data; keep all age classes except ALL_AGE
+    r1 <- vacc[vacc$classe_age != "TOUT_AGE" & vacc$date == thedate, ]
+    # Rename columns
+    r1$taux_cumu <- r1[, paste0("taux_cumu_", varVacc)]
+    r1$n_cumu <- r1[, paste0("effectif_cumu_", varVacc)]
+  }
+  if(vaccAge == "adjusted_rates"){
+    # Subset vaccination data; keep all age classes except ALL_AGE
+    tmp <- vacc[vacc$classe_age != "TOUT_AGE" & vacc$date == thedate, ]
+    r1 <- adjustVacc(tmp, varVacc)
+  }
+  if(vaccAge == "adults"){
+    # Subset vaccination data; keep all age classes except ALL_AGE
+    tmp <- vacc[vacc$classe_age != "TOUT_AGE" & vacc$date == thedate, ]
+    r1 <- adultVacc(tmp, varVacc)
+  }
+
+  # Merge with predictor data
+  m1 <- merge(r1, dat.all[, c("codgeo", varPred)], by = "codgeo")
+  
+  # Treat the predictor
+  pp <- m1[, varPred]
+  if(predTransform == "standardize_msd"){
+    m1$pred.std <- (pp - mean(pp, na.rm = TRUE)) / sd(pp, na.rm = TRUE)
+  }
+  if(predTransform == "standardize_max"){
+    pMax <- max(pp, na.rm = TRUE)
+    pMin <- min(pp, na.rm = TRUE)
+    m1$pred.std <- (pp - pMin) / (pMax - pMin)
+  }
+  if(predTransform == "discretize"){
+    m1$pred.std <- discretizeQ(v = pp, prbs = seq(0, 1, by = by.prbs))
+  }
+  
+  # Permutation if we want to (to test signif)
+  if(permutation){
+    permi <- sample(seq_len(nrow(m1)))
+    m1$pred.std <- m1[permi, "pred.std"]
+  }
+  
+  # Logistic model
+  if(vaccAge == "by_age"){
+    # Logistic model, with age effect
+    mdl <- glm(cbind(n_cumu, population_carto - n_cumu) ~ pred.std + as.factor(classe_age) + pred.std * as.factor(classe_age), family = binomial(link = "logit"), data = m1)
+  }
+  if(is.element(vaccAge, c("raw_rates", "adjusted_rates", "adults"))){
+    # Logistic model, no age effect (but potentially adjusted)
+    mdl <- glm(cbind(n_cumu, population_carto - n_cumu) ~ pred.std, family = binomial(link = "logit"), data = m1)
+  }
+  
+  # Extract values for pred.std
+#  out <- summary(mdl)$coefficients["pred.std", ]
+  # Return model
+  mdl
+}
+```
+
+### Computation, brouillon
+
+```{r, eval = FALSE}
+tmp <- getLogReg("1_inj", "Overcrowding_rate", thedate = date1, predTransform = "discretize", vaccAge = "raw_rates")
+summary(tmp)
+summary(getLogReg("1_inj", "Overcrowding_rate", thedate = date1, predTransform = "discretize", vaccAge = "raw_rates", permutation = TRUE))
+
+tmp <- getLogReg("1_inj", "Overcrowding_rate", thedate = date1, predTransform = "standardize_msd", vaccAge = "raw_rates")
+summary(tmp)
+
+parmsLR <- expand.grid(varVacc = c("1_inj"), 
+                     varPred = names(dat.nocorr[, -1]), 
+                     thedate = c(date1, date2, date3, date4), 
+#                     predTransform = c("standardize_msd", "standardize_max", "discretize"),
+                     predTransform = c("discretize"),
+                     vaccAge = c("raw_rates", "adjusted_rates", "adults"), 
+                     permutation = c(FALSE, TRUE), 
+                     stringsAsFactors = FALSE)
+sort(names(dat.nocorr[, -1]))
+nrow(parmsLR)
+library("parallel")
+
+outLR <- mclapply(seq_len(nrow(parmsLR)), function(i) do.call(getLogReg, parmsLR[i, ]))#,  mc.cores = 3)
+
+# It takes a while with a list, but then we can check how fast it goes
+outLR <- list()
+for (i in seq_len(nrow(parmsLR))){
+    cat(i, " ")
+  outLR[[i]] <- do.call(getLogReg, parmsLR[i, ])
+}
+
+# Add line number in parms dataframe
+parmsLR$i <- seq_len(nrow(parmsLR))
+
+# Extract slope values
+slopes <- unlist(lapply(seq_len(nrow(parmsLR)), function(i) summary(outLR[[i]])$coefficients["pred.std", "Estimate"]))
+
+# Extract p values associated to the slopes
+pvals <- unlist(lapply(seq_len(nrow(parmsLR)), function(i) summary(outLR[[i]])$coefficients["pred.std", "Pr(>|z|)"]))
+
+# Compute decile values
+tx01 <- unlist(lapply(seq_len(nrow(parmsLR)), function(i){cf <- outLR[[i]]$coefficients
+invlogit(cf[1] + 1 * cf[2])}))
+
+tx10 <- unlist(lapply(seq_len(nrow(parmsLR)), function(i){cf <- outLR[[i]]$coefficients
+invlogit(cf[1] + 10 * cf[2])}))
+
+
+
+# Put these values in a data frame
+outputLR <- parmsLR
+outputLR$slopes <- slopes
+outputLR$pvals <- pvals
+outputLR$tx01 <- tx01
+outputLR$tx10 <- tx10
+
+head(outputLR)
+
+hist(-log(outputLR$pvals))
+
+hist(outputLR$slopes)
+
+hist(abs(outputLR$slopes))
+
+head(outputLR[order(abs(outputLR$slopes), decreasing = TRUE), ])
+
+for(predTransform in unique(outputLR$predTransform)){
+  print("-----------------------------------------------------------------------------------")
+  for(varVacc in unique(outputLR$varVacc)){
+    for(thedate in unique(outputLR$thedate)){
+      for(vaccAge in unique(outputLR$vaccAge)){
+        for(permutation in c(TRUE, FALSE)){
+          sub <- outputLR[outputLR$vaccAge == vaccAge & outputLR$thedate == thedate & outputLR$predTransform == predTransform & outputLR$varVacc == varVacc & outputLR$permutation == permutation, ]
+          print(head(sub[order(abs(sub$slopes), decreasing = TRUE), ], n = 10))
+          cat("\n")
+          #        print(head(sub[order(abs(sub$tx10 - sub$tx01), decreasing = TRUE), ], n = 10))
+          #        cat("\n")
+          plot(abs(sub$slopes), ylim = c(0, max(c(0.07, max(abs(sub$slopes))))), 
+               main = paste(predTransform, thedate, vaccAge, permutation))
+        }
+      }
+    }
+  }
+}
+
+
+
+vv <- dat.all$Unemployment_Benef
+plot(discretizeQ(vv, seq(0, 1, by = 0.1)), vv)
+
+invlogit <- function(x) exp(x)/(1 + exp(x))
+
+
+
+outputLRD <- outputLR[which(outputLR$predTransform == "discretize"), ]
+
+max(outputLRD$slopes)
+
+save(outputLR, file = "outputLR_2022-02-19.RData")
+
+```
+
+
+Rationale for choosing how to treat the predictors:   
+-  `standardize_msd` keeps extreme values, so still hard to compare distributions,
+-  `standardize_max` also keeps extreme values, and if there are outliers, the rest of the distribution is completely condensed,  
+so we will keep `discretize`. 
+
+```{r}
+extractValuesOut <- function(outList, parmsMat){
+  # Check dimensions
+  stopifnot(length(outList) == nrow(parmsMat))
+  
+  # Initialize output
+  m <- parmsMat
+  
+  # Add line number in parms dataframe
+  m$i <- seq_len(nrow(parmsMat))
+
+  # Extract slope values
+  slopes <- unlist(lapply(seq_len(nrow(parmsMat)), function(i) summary(outList[[i]])$coefficients["pred.std", "Estimate"]))
+
+# Extract p values associated to the slopes
+  pvals <- unlist(lapply(seq_len(nrow(parmsMat)), function(i) summary(outList[[i]])$coefficients["pred.std", "Pr(>|z|)"]))
+
+# Compute decile values
+  tx01 <- unlist(lapply(seq_len(nrow(parmsMat)), function(i){cf <- outList[[i]]$coefficients
+invlogit(cf[1] + 1 * cf[2])}))
+
+  tx10 <- unlist(lapply(seq_len(nrow(parmsMat)), function(i){cf <- outList[[i]]$coefficients
+invlogit(cf[1] + 10 * cf[2])}))
+  
+  # Compute SE
+  preds <- predict(outList[[i]], newdata = data.frame(pred.std = 1:10), type = "response", se.fit = TRUE)
+  se01 <- preds$se.fit[1]
+  se10 <- preds$se.fit[10]
+  
+  # Put these values in a data frame
+  m$slopes <- slopes
+  m$pvals <- pvals
+  m$tx01 <- tx01
+  m$tx10 <- tx10
+  m$se01 <- se01
+  m$se10 <- se10
+  m$difftx101 <- tx10 - tx01
+  m
+}
+```
+
+### Permutations
+
+```{r permutationsSlopes, eval = FALSE}
+# Combinations of parameters to test
+parmsPerm <- expand.grid(varVacc = c("1_inj"), 
+                     varPred = "French_nlty", 
+                     thedate = c(date1, date2, date3, date4), 
+                     predTransform = c("discretize"),
+                     vaccAge = c("raw_rates", "adults"), 
+                     permutation = c(TRUE), 
+                     stringsAsFactors = FALSE)
+
+# Number of replicates of each combination
+nrep <- 1000
+
+# Rewrite as table with replicates
+#   List of the parameters, one element for one replicate
+listParmsPerm <- list()
+for(rep in 1:nrep) listParmsPerm[[rep]] <- parmsPerm
+#   rbind them
+parmsPermRep <- do.call(rbind, listParmsPerm)
+#   clean memory
+rm(listParmsPerm)
+#   Check dimension
+dim(parmsPermRep)
+
+
+nperm <- nrow(parmsPerm) * nrep 
+
+# Compute model for all combinations and replicates
+# It takes a while with a list, but then we can check how fast it goes
+outPerm <- list()
+for(rep in seq_len(nrep)){ # Replicates
+  for (i in seq_len(nrow(parmsPerm))){ # Parameter values
+    j <- (rep - 1) * nrow(parmsPerm) + i
+    cat(j, " ")
+    outPerm[[j]] <- do.call(getLogReg, parmsPerm[i, ])
+  }
+}
+
+# Extract the key values
+pPerm <- extractValuesOut(outList = outPerm, parmsMat = parmsPermRep)
+
+save(pPerm, file = "randomPermutations_2022-02-21.RData")
+
+# Clean memory 
+rm(outPerm)
+```
+
+
+```{r}
+length(outPerm)
+dim(pPerm)  
+head(pPerm)
+
+hist(pPerm$slopes)
+hist(abs(pPerm$slopes))
+
+# Key values
+quantile(abs(pPerm$slopes), 0.95)
+quantile(abs(pPerm$slopes), 0.99)
+quantile(abs(pPerm$slopes), 0.999)
+max(abs(pPerm$slopes))
+
+```
+
+### Computation
+
+```{r}
+# Values to be tested
+parmsLR <- expand.grid(varVacc = c("1_inj"), 
+                     varPred = names(dat.nocorr[, -1]), 
+                     thedate = c(date1, date2, date3, date4), 
+                     predTransform = c("discretize"),
+                     vaccAge = c("raw_rates", "adults"), 
+                     permutation = c(FALSE), 
+                     stringsAsFactors = FALSE)
+```
+
+
+```{r, eval = FALSE}
+#outLR <- mclapply(seq_len(nrow(parmsLR)), function(i) do.call(getLogReg, parmsLR[i, ]))#,  mc.cores = 3)
+
+nrow(parmsLR)
+
+# It takes a while with a list, but then we can check how fast it goes
+outLR <- list()
+for (i in seq_len(nrow(parmsLR))){
+    cat(i, " ")
+  outLR[[i]] <- do.call(getLogReg, parmsLR[i, ])
+}
+
+
+# Extract the key values
+pLR <- extractValuesOut(outList = outLR, parmsMat = parmsLR)
+
+save(pLR, file = "LR_2022-02-21.RData")
+```
+
+```{r}
+brks <- seq(0, 0.1, by = 0.0025)
+h1 <- hist(abs(pLR$slopes), breaks = brks, freq = FALSE)
+h0 <- hist(abs(pPerm$slopes), breaks = brks, freq = FALSE)
+par(las = 1)
+col1 <- rgb(0.8, 0, 0.8, 0.5)
+col0 <- gray(0, 0.5)
+plot(h1, col = col1, ylim = c(0, max(c(h0$density, h1$density))), freq = FALSE, main = "Slope values", xlab = "abs(slopes)")
+plot(h0, add = TRUE, col = col0, freq = FALSE)
+legend(horiz = FALSE, x ="right", pch = 15, pt.cex = 2, col = c(col0, col1), legend = c("Permutation", "Data"), box.lwd = 0)
+```
+
+
+```{r}
+# Distribution of p values
+
+-log(0.05/300)
+
+cts <- c(-0.1, 0.0001, 0.001, 0.01, 0.05, 1)
+hist(cut(pLR$pvals, cts, labels = FALSE), breaks = seq_along(cts) - 0.5, col = col1, ylim = c(0, 1), freq = FALSE)
+hist(cut(pPerm$pvals, cts, labels = FALSE), breaks = seq_along(cts) - 0.5, add = TRUE, col = col0, freq = FALSE)
+
+```
+
+```{r}
+# Distribution of interdecile differences
+brks <- seq(0, 0.15, by = 0.005)
+brks[1] <- brks[1] - 0.0001
+par(las = 1)
+hist(abs(pLR$tx10 - pLR$tx01), col = col1, breaks = brks, freq = FALSE, ylim = c(0, 100), main = "Interdecile difference")
+hist(abs(pPerm$tx10 - pPerm$tx01), add = TRUE, col = col0, breaks = brks, freq = FALSE)
+```
+
+```{r, eval = FALSE}
+for(predTransform in unique(pLR$predTransform)){
+  print("-----------------------------------------------------------------------------------")
+  for(varVacc in unique(pLR$varVacc)){
+    for(thedate in unique(pLR$thedate)){
+      for(vaccAge in unique(pLR$vaccAge)){
+        for(permutation in unique(pLR$permutation)){
+          sub <- pLR[pLR$vaccAge == vaccAge & pLR$thedate == thedate & pLR$predTransform == predTransform & pLR$varVacc == varVacc & pLR$permutation == permutation, ]
+          print(head(sub[order(abs(sub$slopes), decreasing = TRUE), ], n = 10))
+          cat("\n")
+          #        print(head(sub[order(abs(sub$tx10 - sub$tx01), decreasing = TRUE), ], n = 10))
+          #        cat("\n")
+          plot(abs(sub$slopes), ylim = c(0, max(c(0.075, max(abs(sub$slopes))))), 
+               main = paste(predTransform, thedate, vaccAge, permutation))
+        }
+      }
+    }
+  }
+}
+
+
+pLR$diff10.1 <- pLR$tx10 - pLR$tx01
+pLR$diff10.1.se <- pLR$se10 - pLR$se01
+
+
+for(predTransform in unique(pLR$predTransform)){
+  print("-----------------------------------------------------------------------------------")
+  for(varVacc in unique(pLR$varVacc)){
+    for(thedate in unique(pLR$thedate)){
+      for(vaccAge in unique(pLR$vaccAge)){
+        for(permutation in unique(pLR$permutation)){
+          sub <- pLR[pLR$vaccAge == vaccAge & pLR$thedate == thedate & pLR$predTransform == predTransform & pLR$varVacc == varVacc & pLR$permutation == permutation, ]
+          print(head(sub[order(abs(sub$diff10.1), decreasing = TRUE), ], n = 10))
+          cat("\n")
+          #        print(head(sub[order(abs(sub$tx10 - sub$tx01), decreasing = TRUE), ], n = 10))
+          #        cat("\n")
+          yy <- abs(sub$diff10.1)
+          plot(yy, ylim = c(0, 0.2), 
+               main = paste(predTransform, thedate, vaccAge, permutation))
+        }
+      }
+    }
+  }
+}
+
+```
+
+
+Decisions:  
+-  Work with 20+ only to avoid issues with proportions of children
+
+### Figures
+
+```{r}
+pPerm.adults <- pPerm[pPerm$vaccAge == "adults", ]
+dim(pPerm.adults)
+
+hP <- list()
+brks <- seq(0, 0.2, by = 0.001)
+column <- "difftx101"
+for(i in 1:4){
+  dt <- get(paste0("date", i))
+  subP <- pPerm[pPerm$vaccAge == "adults" & pPerm$thedate == dt, ]
+  hP[[i]] <- hist(abs(subP[, column]), breaks = brks)
+  hP[[i]]$props <- hP[[i]]$counts / sum(hP[[i]]$counts)
+  hP[[i]]$scaledcounts <- hP[[i]]$counts / max(hP[[i]]$counts)
+}
+
+i <- 1
+subLR <- pLR[pLR$vaccAge == "adults" & pLR$thedate == get(paste0("date", i)), ]
+plot(0, xlim = c(1, nrow(subLR)), ylim = c(0, 0.2), xaxs = "i", yaxs = "i", 
+     frame.plot = FALSE, type = "n")
+j <- 1:(length(brks)-1)
+cols <- gray(1 - hP[[i]]$scaledcounts)
+rect(xleft = rep(1, length(j)), xright = rep(nrow(subLR), length(j)), 
+     ybottom = brks[j], ytop = brks[j+1], 
+     border = cols, lwd = 0, col = cols)
+par(xpd = TRUE)
+points(abs(subLR[, column]), col = colClass[dicPred[subLR$varPred]], pch = 16)
+
+classes <- dicPred[subLR$varPred]
+aggregate(classes, FUN = length, by = list(classes))
+
+unique(classes)
+
+plot(0)
+hP[[1]]
+hP[[1]]
+hist(pPerm.adults$tx10 - pPerm.adults$tx01)
+
+```
+
