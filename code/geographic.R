@@ -7,9 +7,12 @@ stopifnot(exists("vaccEPCI"))
 
 #### LOAD AND CLEAN GEOGRAPHIC DATA ####
 # Source of the two datasets: https://datavaccin-covid.ameli.fr/explore/?sort=modified
+
+#   Source: https://datavaccin-covid.ameli.fr/explore/dataset/georef-france-commune-arrondissement-municipal/download/?format=csv&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B
 geoCom <- read.csv("../data/geographic/fromAmeli/georef-france-commune-arrondissement-municipal.csv",row.names = NULL, sep = ";")
 geoCom <- geoCom[, -which(colnames(geoCom) == "Geo.Shape")]
 
+#  Source: https://datavaccin-covid.ameli.fr/explore/dataset/georef-france-epci/download/?format=csv&timezone=Europe/Berlin&lang=fr&use_labels_for_header=true&csv_separator=%3B
 geoEPCI <- read.csv("../data/geographic/fromAmeli/georef-france-epci.csv",row.names = NULL, sep = ";")
 geoEPCI <- geoEPCI[, -which(colnames(geoEPCI) == "Geo.Shape")]
 geoEPCI <- geoEPCI[, -which(colnames(geoEPCI) == "viewport")]
