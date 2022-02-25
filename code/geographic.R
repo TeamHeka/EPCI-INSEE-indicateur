@@ -91,6 +91,12 @@ dat.GEO$NO.SE <- dat.GEO$lon01 - dat.GEO$lat01
 plot(dat.GEO$SO.NE, dat.GEO$lat01)
 plot(dat.GEO$NO.SE, dat.GEO$lat01)
 
+##### Densites #####
+# Load the old file
+tmp <- read.csv("../data/GEO_brut_OLD.csv")
+# Merge density information with what we have
+dat.GEO <- merge(dat.GEO, tmp[, c("codgeo", "densite")], by = "codgeo")
+
 #### EXPORT OUTPUT ####
 write.csv(dat.GEO, "../data/GEO_brut.csv", row.names = FALSE)
 system("git add ../data/GEO_brut.csv")
