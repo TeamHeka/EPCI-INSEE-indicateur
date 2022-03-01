@@ -3,7 +3,7 @@ extractOR <- function(mdl, nstd = NA){
 
   # If not `nstd` is specified, take the last one
   if(is.na(nstd)){
-    nstd <- length(xx$coefficients)
+    nstd <- length(mdl$coefficients)
   }
   
   pred <- paste0("pred.std", nstd)
@@ -45,7 +45,7 @@ extractOR <- function(mdl, nstd = NA){
 #....................................................................................
 
 # Compute adjusted predicted values
-adjustedPredict <- function(mdl, newd, includeChildren = FALSE, distAge = distAge){
+adjustedPredict <- function(mdl, newd, includeChildren = TRUE, distributionAges = distAge){
   # mdl is model by age
   # newd is new data for the predicted values
   # includeChildren is a boolean indicating whether the 00-19 age class should be included in the adjusted rate
@@ -53,55 +53,31 @@ adjustedPredict <- function(mdl, newd, includeChildren = FALSE, distAge = distAg
   
   # Compute predicted values
   preds <- cbind(newd, pred = predict(mdl, newdata = newd, type = "response"))
-  
+
   # Recompute distAge in case we exclude children
-  dA <- distAge
+  dA <- distributionAges
   if(!includeChildren){
     # Remove 00-19
     dA <- dA[dA$classe_age != "00-19", ]
     # Recompute proportions
     dA$p <- dA$x / sum(dA$x)
   }
-  
+
   # Add the proportion information
   preds <- merge(preds, dA, by = "age.f")
-  
-  out <- aggregate(preds$pred * preds$p, by = list()
-    data.frame(taux_cumu = rr1[, paste0("taux_cumu_", varVacc)] * rr1$propAgeClass, population_carto = rr1$population_carto), by = list(codgeo = rr1$codgeo), FUN = sum, na.rm = TRUE)
-  
+
+  out <- aggregate(preds$pred * preds$p, by = list(pred.std = preds$pred.std), FUN = sum)
+  names(out)[which(names(out) == "x")] <- "adjustedRate"
+  out
 }
+
+#....................................................................................
 
 # Construct OR from predicted values
-
-
-
-
-computeAgeAdjustedOR <- function(mdl, newd, includeChildren = TRUE){
-  # mdl is model by age
-  # newd is new data for the predicted values
-  # includeChildren is a boolean indicating whether the 00-19 age class should be included in the adjusted rate
-  
-  preds <- cbind(newd, pred = predict(mdl, newdata = newd, type = "response"))
-  
-  
-  
-  # Check is the model is with factor predictor, or quantitative predictor
-  typeP <- ifelse(names(mdl$coefficients)[2] == "pred.std", "numeric", "factor")
-  
-  if(names(mdl$coefficients)[2] == "pred.std"){
-    # Here we have a numeric predictor
-    
-    newd <- 
-    
-  }else{
-    # Here we have a factor predictor
-    
-  }
-  if(typeP)
-  
-  new
-  
-  preds <- cbind(newd, predict(mdl, newdata = newd, type = "response", se.fit = TRUE))
-  
-  
+getORfromPredict <- function(rates){
+  # rates: rates of the two outcomes to compare
+  OR <- rates[1] * (1 - rates[2]) / (rates[2] * (1 - rates[1]))
+  OR
 }
+
+
