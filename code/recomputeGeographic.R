@@ -19,6 +19,9 @@ lon.Paris <- dat.GEO[iParis, "longitude"]
 dat.GEO$distanceParis <- sqrt((dat.GEO$latitude - lat.Paris)^2 + (dat.GEO$longitude - lon.Paris)^2)
 hist(dat.GEO$distanceParis)
 
+plot(dat.GEO$longitude, dat.GEO$latitude)
+plot(dat.GEO$SO.NE, dat.GEO$latitude - dat.GEO$longitude)
+
 # Remove the erroneous verions
 dat.GEO <- dat.GEO[, which(names(dat.GEO) != "distParis")]
 

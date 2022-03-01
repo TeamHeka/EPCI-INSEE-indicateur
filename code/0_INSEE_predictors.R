@@ -1,16 +1,26 @@
 #### INITIALIZATIONS ####
+#library("RColorBrewer")
 
-## PARAMETERS
+# Project is at the root; change wd to code/ if not already in there
+if(!file.exists("0_INSEE_predictors.R")){
+  setwd("code/")
+}
+
+sortData <- FALSE
+
+## PARAMETERS 
 
 # Threshold for correlation in the variables
+# Variables with absolute correlation above this threshold are removed from the analysis
 thrCor <- 0.95
-
 
 ## FUNCTIONS
 
 # Function to check correlations
 checkCor <- function(dat){
+  # Compute correlations
   cor.dat <- cor(dat, use = "pairwise.complete.obs")
+  # Set diagonal to NA (variance)
   diag(cor.dat) <- NA
   # Turn into binary depending on position wrt threshold
   cor.dat2 <- 1*(abs(cor.dat) > thrCor)
@@ -26,248 +36,238 @@ checkCor <- function(dat){
 
 #### LOAD INSEE AND GEO DATA ####
 
-#---------------------------------------------------------------------------------------
-# Activity data
-dat.ACT <- read.csv("../data/INSEE_transformed/ACT_brut.csv", sep = ";", dec = ",")
+# Initialize the dataType vector. It will contain information on the classes
+dataType <- data.frame(predName = c(), predType = c())
+
+# Activity data ---------------------------------------------------------------------------------------
+# Check if there are differences in the two versions of the data file
+system("diff ../data/INSEE_transformed/ACT_brut.csv ../data/ACT_brut.csv")
+# Loaf the data
+dat.ACT <- read.csv("../data/ACT_brut.csv")
+dim(dat.ACT)
 head(dat.ACT)
-# Remove last column 
-dat.ACT <- dat.ACT[, 1:(ncol(dat.ACT)-1)]
-# Check correlations
-cor.ACT <- checkCor(dat.ACT[, -1])
-cor.ACT
-image(cor.ACT)
-heatmap(cor.ACT, Rowv = NA, Colv = NA, cexRow = 0.7, cexCol = 0.7)
-# We can remove the following ones
-rm.ACT <- c("X15._Men_amg_salWF", "X15._SelfEmployed_amg_nonsalWF")
+# Remove vaccination data
+dat.ACT <- dat.ACT[, -which(is.element(names(dat.ACT), "taux_cumu_1_inj"))]
+# Check duplicates in names
+any(duplicated(names(dat.ACT)))
+# Add information to the dataType vector
+dataType <- rbind(dataType, data.frame(predName = names(dat.ACT)[-1], predType = "ACT"))
 
-#---------------------------------------------------------------------------------------
-# Employment data
-dat.EMP <- read.csv("../data/INSEE_transformed/EMP_brut.csv", sep = ";", dec = ",")
+
+# Structure is then the same as for ACT, so not commented in detail
+
+# Employment data ---------------------------------------------------------------------------------------
+system("diff ../data/INSEE_transformed/EMP_brut.csv ../data/EMP_brut.csv")
+dat.EMP <- read.csv("../data/EMP_brut.csv")
 head(dat.EMP)
-# Remove last column 
-dat.EMP <- dat.EMP[, 1:(ncol(dat.EMP)-1)]
-# Check correlations
-cor.EMP <- checkCor(dat.EMP[, -1])
-cor.EMP
-image(cor.EMP)
-heatmap(1 * (abs(cor.EMP) > thrCor), cexRow = 0.7, cexCol = 0.7)
+dat.EMP <- dat.EMP[, -which(is.element(names(dat.EMP), "taux_cumu_1_inj"))]
+any(duplicated(names(dat.EMP)))
+dataType <- rbind(dataType, data.frame(predName = names(dat.EMP)[-1], predType = "EMP"))
 
-network <- graph_from_adjacency_matrix(1 * (abs(cor.EMP) > thrCor), weighted = TRUE, mode="undirected", diag = FALSE)
-plot(network, vertex.label.cex=0.7, vertex.size = 6)
-
-# We can remove the following ones
-rm.EMP <- c("")
-
-#---------------------------------------------------------------------------------------
-# Family data
-dat.FAM <- read.csv("../data/INSEE_transformed/FAM_brut.csv", sep = ";", dec = ",")
+# Family data ---------------------------------------------------------------------------------------
+system("diff ../data/INSEE_transformed/FAM_brut.csv ../data/FAM_brut.csv")
+dat.FAM <- read.csv("../data/FAM_brut.csv")
 head(dat.FAM)
-# Remove last column 
-dat.FAM <- dat.FAM[, 1:(ncol(dat.FAM)-1)]
-cor.FAM <- checkCor(dat.FAM[, -1])
-heatmap(1 * (abs(cor.FAM) > thrCor), cexRow = 0.7, cexCol = 0.7)
+dat.FAM <- dat.FAM[, -which(is.element(names(dat.FAM), "taux_cumu_1_inj"))]
+any(duplicated(names(dat.FAM)))
+dataType <- rbind(dataType, data.frame(predName = names(dat.FAM)[-1], predType = "FAM"))
 
-network <- graph_from_adjacency_matrix(1 * (abs(cor.FAM) > thrCor), weighted = TRUE, mode="undirected", diag = FALSE)
-plot(network, vertex.label.cex=0.7, vertex.size = 6)
-
-#---------------------------------------------------------------------------------------
-# Education data
-dat.FOR <- read.csv("../data/INSEE_transformed/FOR_brut.csv", sep = ";", dec = ",")
+# Education data ---------------------------------------------------------------------------------------
+system("diff ../data/INSEE_transformed/FOR_brut.csv ../data/FOR_brut.csv")
+dat.FOR <- read.csv("../data/FOR_brut.csv")
 head(dat.FOR)
-# Remove last column 
-dat.FOR <- dat.FOR[, 1:(ncol(dat.FOR)-1)]
-# Check correlations
-cor.FOR <- checkCor(dat.FOR[, -1])
-heatmap(1 * (abs(cor.FOR) > thrCor), cexRow = 0.7, cexCol = 0.7)
+dat.FOR <- dat.FOR[, -which(is.element(names(dat.FOR), "taux_cumu_1_inj"))]
+any(duplicated(names(dat.FOR)))
+dataType <- rbind(dataType, data.frame(predName = names(dat.FOR)[-1], predType = "FOR"))
 
-network <- graph_from_adjacency_matrix(1 * (abs(cor.FOR) > thrCor), weighted = TRUE, mode="undirected", diag = FALSE)
-plot(network, vertex.label.cex=0.7, vertex.size = 6)
-
-#---------------------------------------------------------------------------------------
-# Geographic data
-# dat.GEO <- read.csv("../data/INSEE_transformed/GEO_brut.csv", sep = ";", dec = ",")
-#tail(dat.GEO)
-# Remove last column 
-# dat.GEO <- dat.GEO[, -5]
-
-dat.GEO <- read.csv("../data/geographic/exportGeo_EPCI.csv")
-dat.GEO <- dat.GEO[, -1]
+# Geographic data ---------------------------------------------------------------------------------------
+# system("diff ../data/geographic/exportGeo_EPCI.csv ../data/GEO_brut.csv")
+# Computed in `geographic.R`
+dat.GEO <- read.csv("../data/GEO_brut.csv")
 head(dat.GEO)
-names(dat.GEO) <- c("long", "lat", "surf", "codgeo")
-# Compute diagonal values
-dat.GEO$SONE <- dat.GEO$lat + dat.GEO$long
-dat.GEO$SENO <- dat.GEO$lat - dat.GEO$long
+dat.GEO <- dat.GEO[, -which(is.element(names(dat.GEO), c("taux_cumu_1_inj", "lat01", "lon01")))]
+any(duplicated(names(dat.GEO)))
+dataType <- rbind(dataType, data.frame(predName = names(dat.GEO)[-1], predType = "GEO"))
 
-#---------------------------------------------------------------------------------------
-# Immigration data 
-dat.IMM <- read.csv("../data/INSEE_transformed/IMM_brut.csv", sep = ";", dec = ",")
+# Immigration data ---------------------------------------------------------------------------------------
+system("diff ../data/INSEE_transformed/IMM_brut.csv ../data/IMM_brut.csv")
+dat.IMM <- read.csv("../data/IMM_brut.csv")
 head(dat.IMM)
-# Remove last column 
-dat.IMM <- dat.IMM[, 1:(ncol(dat.IMM)-1)]
-# Check correlations
-cor.IMM <- checkCor(dat.IMM[, -1])
-cor.IMM
-heatmap(1 * (abs(cor.IMM) > thrCor), cexRow = 0.7, cexCol = 0.7)
+dat.IMM <- dat.IMM[, -which(is.element(names(dat.IMM), "taux_cumu_1_inj"))]
+any(duplicated(names(dat.IMM)))
+dataType <- rbind(dataType, data.frame(predName = names(dat.IMM)[-1], predType = "IMM"))
 
-network <- graph_from_adjacency_matrix(1 * (abs(cor.IMM) > thrCor), weighted = TRUE, mode="undirected", diag = FALSE)
-plot(network, vertex.label.cex=0.7, vertex.size = 6)
-
-#---------------------------------------------------------------------------------------
-# Housing data
-dat.LOG <- read.csv("../data/INSEE_transformed/LOG_brut.csv", sep = ";", dec = ",")
+# Housing data ---------------------------------------------------------------------------------------
+system("diff ../data/INSEE_transformed/LOG_brut.csv ../data/LOG_brut.csv")
+dat.LOG <- read.csv("../data/LOG_brut.csv")
 head(dat.LOG)
-# Remove last column 
-dat.LOG <- dat.LOG[, 1:(ncol(dat.LOG)-1)]
-# Check correlations
-cor.LOG <- checkCor(dat.LOG[, -1])
-heatmap(1 * (abs(cor.LOG) > thrCor), cexRow = 0.7, cexCol = 0.7)
+dat.LOG <- dat.LOG[, -which(is.element(names(dat.LOG), "taux_cumu_1_inj"))]
+any(duplicated(names(dat.LOG)))
+dataType <- rbind(dataType, data.frame(predName = names(dat.LOG)[-1], predType = "LOG"))
 
-network <- graph_from_adjacency_matrix(1 * (abs(cor.LOG) > thrCor), weighted = TRUE, mode="undirected", diag = FALSE)
-plot(network, vertex.label.cex=0.7, vertex.size = 6)
-
-#---------------------------------------------------------------------------------------
-# Population data
-dat.POP <- read.csv("../data/INSEE_transformed/POP_brut.csv", sep = ";", dec = ",")
+# Population data ---------------------------------------------------------------------------------------
+system("diff ../data/INSEE_transformed/POP_brut.csv ../data/POP_brut.csv")
+dat.POP <- read.csv("../data/POP_brut.csv")
 head(dat.POP)
-# Remove last column 
-dat.POP <- dat.POP[, 1:(ncol(dat.POP)-1)]
-# Check correlations
-cor.POP <- checkCor(dat.POP[, -1])
-heatmap(1 * (abs(cor.POP) > thrCor), cexRow = 0.7, cexCol = 0.7)
+dat.POP <- dat.POP[, -which(is.element(names(dat.POP), "taux_cumu_1_inj"))]
+any(duplicated(names(dat.POP)))
+dataType <- rbind(dataType, data.frame(predName = names(dat.POP)[-1], predType = "POP"))
 
-network <- graph_from_adjacency_matrix(1 * (abs(cor.POP) > thrCor), weighted = TRUE, mode="undirected", diag = FALSE)
-plot(network, vertex.label.cex=0.7, vertex.size = 6)
-
-#---------------------------------------------------------------------------------------
-# Income data
-dat.REV <- read.csv("../data/INSEE_transformed/REV_brut.csv", sep = ";", dec = ",")
+# Income data ---------------------------------------------------------------------------------------
+system("diff ../data/INSEE_transformed/REV_brut.csv ../data/REV_brut.csv")
+dat.REV <- read.csv("../data/REV_brut.csv")
 head(dat.REV)
-# Remove last column 
-dat.REV <- dat.REV[, 1:(ncol(dat.REV)-1)]
-# Check correlations
-cor.REV <- checkCor(dat.REV[, -1])
-heatmap(1 * (abs(cor.REV) > thrCor), cexRow = 0.7, cexCol = 0.7)
+dat.REV <- dat.REV[, -which(is.element(names(dat.REV), "taux_cumu_1_inj"))]
+any(duplicated(names(dat.REV)))
+dataType <- rbind(dataType, data.frame(predName = names(dat.REV)[-1], predType = "REV"))
 
-network <- graph_from_adjacency_matrix(1 * (abs(cor.REV) > thrCor), weighted = TRUE, mode="undirected", diag = FALSE)
-plot(network, vertex.label.cex=0.7, vertex.size = 6)
+# Election data ---------------------------------------------------------------------------------------
+dat.PRE <- read.csv("../data/PRE_brut.csv")
+head(dat.PRE)
+any(duplicated(names(dat.PRE)))
+dataType <- rbind(dataType, data.frame(predName = names(dat.PRE)[-1], predType = "PRE"))
 
-#---------------------------------------------------------------------------------------
-
+#### MERGE DATASETS ####
 # Types of datasets
-dataTypes <- c("ACT", "EMP", "FAM", "FOR", "GEO", "IMM", "LOG", "POP", "REV")
+dataTypes <- c("ACT", "REV", "FOR", "EMP", "IMM", "LOG", "FAM", "POP", "PRE", "GEO")
 
 # Merge all predictor data into a single dataset
-dat.all <- merge(dat.ACT, dat.EMP, all = TRUE, by = "codgeo")
-dat.all <- merge(dat.all, dat.FAM, all = TRUE, by = "codgeo")
-dat.all <- merge(dat.all, dat.FOR, all = TRUE, by = "codgeo")
-dat.all <- merge(dat.all, dat.GEO, all = TRUE, by = "codgeo")
-dat.all <- merge(dat.all, dat.IMM, all = TRUE, by = "codgeo")
-dat.all <- merge(dat.all, dat.LOG, all = TRUE, by = "codgeo")
-dat.all <- merge(dat.all, dat.POP, all = TRUE, by = "codgeo")
-dat.all <- merge(dat.all, dat.REV, all = TRUE, by = "codgeo")
-names(dat.all)
+# Initialize the merge
+dat.all <- merge(dat.ACT, dat.REV, all = TRUE, by = "codgeo")
+# Continue with the other datasets
+for(suffix in dataTypes[3:length(dataTypes)]){
+  dat.all <- merge(dat.all, get(paste0("dat.", suffix)), all = TRUE, by = "codgeo")
+}
+
+dim(dat.all)
+# Sanity check: compute sum of numbers of columns, 
+#               removing the codgeo column for all but one dataset (hence -1, and +1)
+sum(vapply(dataTypes, function(i) ncol(get(paste0("dat.", i))) - 1, 1)) + 1
+
+
+if(sortData){
+  # Sort columns by alphabetical order
+  # +1 not to be forgotten: indices did not include the first column
+  nn <- names(dat.all)[2:ncol(dat.all)]
+  dat.all <- dat.all[, c(1, order(nn) + 1)]
+}
+
+
+#### CHECK CORRELATIONS ####
+
+## Check correlations
+# Get all pairwise correlations
+# and take absolute value
+cormat <- abs(cor(dat.all[, -1], use = "pairwise.complete.obs"))
+diag(cormat) <- NA # Remove diagonal
+
+# Sanity check
+all(rownames(cormat) == colnames(cormat))
+
+# indices to sort in alphabetical order
+ialph <- order(rownames(cormat))
+
+ocormat <- cormat
+cormat <- cormat[ialph, ialph]
+
+print(paste("thrCor = ", thrCor))
+# Identify indices of the correlations greater or equal than the defined threshold
+indOverThr <- which(cormat >= thrCor, arr.ind = TRUE)
+
+# Keep only half (the other half are duplicates)
+triangle <- indOverThr[indOverThr[, 1] <= indOverThr[, 2], ]
+
+# Sanity check
+stopifnot(nrow(indOverThr)/2 == nrow(triangle))
+
+# Remove the duplicates
+#   Get the names of the correlated columns
+correlated <- unique(colnames(cormat)[triangle[, 2]])
+#   Get their indices (col positions)
+i.corr <-   which(is.element(names(dat.all), correlated))
+#   Remove them
+dat.nocorr <- dat.all[, -i.corr]
+
+dim(dat.nocorr)
+
+# Print names of the removed columns
+names(dat.all)[i.corr]
+
+# Sanity check
+all(sort(names(dat.all)[i.corr]) == sort(correlated))
+
+# Print names of the columns we keep
+sort(names(dat.nocorr))
 
 # Get names of all the predictors
 predNames <- names(dat.all)
 predNames <- predNames[-1] # Remove codgeo
 
-# Get classes of all the predictors
-predClass <- c(rep("ACT", ncol(dat.ACT)-1), 
-               rep("EMP", ncol(dat.EMP)-1),
-               rep("FAM", ncol(dat.FAM)-1),
-               rep("FOR", ncol(dat.FOR)-1),
-               rep("GEO", ncol(dat.GEO)-1),
-               rep("IMM", ncol(dat.IMM)-1),
-               rep("LOG", ncol(dat.LOG)-1),
-               rep("POP", ncol(dat.POP)-1),
-               rep("REV", ncol(dat.REV)-1)
-)
+#............................................................................
 
-# Save names of variables and classes as dictionnary
-corrPred <- cbind(varName = predNames, varClass = predClass)
-dicPred <- predClass
-names(dicPred) <- predNames
+#### CLASSES OF THE PREDICTORS ####
 
+## Abundances per type
+# All data, distribution
+aggregate(dataType$predName, by = list(dataType$predType), FUN = length)
 
-#### Check correlations ####
-## Check correlations
-# Get all pairwise correlations
-corINSEE <- cor(dat.all[, -1], use = "pairwise.complete.obs")
-# Select those above threshold
-corINSEE2 <- 1 * (abs(corINSEE) > thrCor)
-# Remove diagonal
-diag(corINSEE2) <- NA
+dT2 <- dataType[is.element(dataType$predName, names(dat.nocorr)), ]
+aggregate(dT2$predName, by = list(dT2$predType), FUN = length)
 
-keep <- (rowSums(corINSEE2, na.rm = TRUE) > 0)
-keep
+## Construct dictionnary
+dicPred <- dataType$predType
+names(dicPred) <- dataType$predName
 
-corINSEE2.reduced <- corINSEE2[keep, keep]
-dim(corINSEE2.reduced)
+# Write down full name of the different classes
+dic.fullpred <- c("Activity", "Income", "Education", "Employment", "Immigration", "Housing", "Family", "Population", "Elections", "Geography")
+names(dic.fullpred) <- c("ACT", "REV", "FOR", "EMP", "IMM", "LOG", "FAM", "POP", "PRE", "GEO")
+dic.fullpred
 
-image(corINSEE2.reduced)
-par(mar = rep(7, 4))
-hm <- heatmap(corINSEE2.reduced, keep.dendro = FALSE)
-hm
-
-
-
-
-#install.packages("igraph")
-
-corlist <- which(corINSEE2.reduced > 0, arr.ind = TRUE)
-dim(corlist)
-
-write.csv(cbind(row.names(corINSEE2.reduced)[corlist[, 1]], 
-                row.names(corINSEE2.reduced)[corlist[, 2]], 
-                c(corINSEE2.reduced[corlist])), "tmp.csv")
-
-
-
-rn <- row.names(corINSEE2.reduced)[hm$rowInd]
-corINSEE3 <- cor(dat.all[, rn], use = "pairwise.complete.obs")
-diag(corINSEE3) <- NA
-
-corlist3 <- which(abs(corINSEE3) > thrCor, arr.ind = TRUE)
-dim(corlist3)
-
-write.csv(cbind(row.names(corINSEE3)[corlist3[, 1]], 
-                row.names(corINSEE3)[corlist3[, 2]], 
-                c(corINSEE3[corlist3])), "tmp3.csv")
-
-
-length(corINSEE2.reduced[unname(corlist)])
-
-corlist
-
-# Make an Igraph object from this matrix:
-network <- graph_from_adjacency_matrix(corINSEE2, weighted = TRUE, mode="undirected", diag = FALSE)
-
-# Basic chart
-plot(network)
-
-sum(corINSEE2, na.rm = TRUE)
-
-diffsupercor <- supercor[supercor[, 1] > supercor[, 2], ]
-nrow(diffsupercor)
-diffsupercor
-
-
-unique(row.names(diffsupercor))
-
-?which
-corINSEE[cor]
-row.names(corINSEE)
-image(corINSEE)
-
-###--------------------------
+# Dictionary to sort by type
+dic.order <- 1:length(dic.fullpred)
+names(dic.order) <- names(dic.fullpred)
 
 # Define corresponding colors for the different predictors (by type)
-colClass <- brewer.pal(length(unique(predClass)), name = "Set1")
-names(colClass) <- unique(predClass)
+# From https://medialab.github.io/iwanthue/
+# "Pimp" palette
+colClass <- c("#9548ce", 
+              "#57a741", 
+              "#c74795",
+              "#437338",
+              "#716ab7",
+              "#8e8835",
+              "#d54b36", 
+              "#2da0a1",
+              "#ac4d5e",
+              "#ae6e32") 
+#brewer.pal(length(unique(dicPred)), name = "Set2")
+names(colClass) <- unique(dicPred)
 
-## Load region information for the different EPCI
-regions <- read.csv("../data/geographic/EPCI_composition-communale.csv")
-head(regions)
-# Create dictionnary 
-dic.reg <- regions$REG
-names(dic.reg) <- regions$EPCI
+#### SORT THE DATA AND EXPORT ####
+
+# Get names of the predictors in the nocorr dataset
+nn <- names(dat.nocorr)[-1]
+# Get associated types
+tt <- dicPred[nn]
+# Get associated number, chosen to sort them
+tt2 <- dic.order[tt]
+
+# Sanity check
+table(tt)
+table(tt2)
+
+# Indices of the data, when sorted by type and them alphabetically within type
+i.ordered <- order(tt2, nn)
+
+nn[i.ordered]
+
+if(sortData){
+  # Reorder the data; 
+  #  +1 is here because we have removed codgeo from nn, but indices need to take it into account
+  dat.nocorr <- dat.nocorr[, c(1, i.ordered + 1)]
+}
+
+
+# Export the result
+save(dat.all, dat.nocorr, dicPred, dic.fullpred, colClass, file = "../data/predictors.RData")
+
