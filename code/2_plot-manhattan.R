@@ -33,7 +33,7 @@ plotManhattan <- function(out, qq = 0.99, ntop = 3){
     subF$i <- seq_len(nrow(subF)) # Add index
     
     # Initialize plot
-    par(mar = c(3, 5, 2, 2), mgp = c(2, 0.5, 0))
+    par(mar = c(3, 5, 2, 2), mgp = c(1.25, 0.5, 0))
     plot(0, xlim = c(1, xMax), ylim = c(1, nrow(subF)), type = "n", 
          axes = FALSE, xlab = "max(OR, 1/OR)", ylab = "")
     axis(1, pos = 1, lwd = 0, lwd.ticks = 1, tck = -0.01)
@@ -74,11 +74,11 @@ plotManhattan <- function(out, qq = 0.99, ntop = 3){
     
     arrs <- rep("▲", ntop)
     arrs[tmp$OR < 1] <- "▼"
-    print(arrs)
     text(y = tmp$i, x = tmp$OR.abs, adj = c(0, 0.5), labels = paste0("   ", tmp$varPred, " ", arrs), cex = 0.7)
     
     # Add title
     title(main = thedate)
   } # end date loop
 }
+
 
