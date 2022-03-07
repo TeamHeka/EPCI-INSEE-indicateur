@@ -251,7 +251,7 @@ if(runComputations){
   dates <- dates[dates >= minDate]
   
   # Define the combinations of parameters to be tested
-  parmsTime <- expand.grid(varPred = c("Unemployment_Benef", "French_nlty", "Asselineau"), 
+  parmsTime <- expand.grid(varPred = c("Unemployment_Benef", "Immigrant", "Asselineau"), 
                            thedate = dates, 
                            predTransform = "discretize_factor", 
                            vaccAge = "by_age", 
@@ -332,13 +332,9 @@ plot(discretizeQ(vv, seq(0, 1, 0.1)),
 
 plotMapVar("Asselineau", byp = 0.1)
 plotMapVar("Abstention", byp = 0.1)
-plotMapVar("French_nlty", byp = 0.1)
+plotMapVar("Immigrant", byp = 0.1)
 
 plotMapVar("X1564_OtherInactive_amg_NW", byp = 0.1)
-
-plotMapVar("Stranger", byp = 0.1)
-
-varPred <- "French_nlty"
 ```
 
 # Essais

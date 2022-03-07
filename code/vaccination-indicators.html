@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+
+<meta name="author" content="FD" />
+
+
+<title>Vaccination</title>
+
+<script src="vaccination-indicators_files/header-attrs-2.7/header-attrs.js"></script>
+<script src="vaccination-indicators_files/jquery-1.11.3/jquery.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="vaccination-indicators_files/bootstrap-3.3.5/css/bootstrap.min.css" rel="stylesheet" />
+<script src="vaccination-indicators_files/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="vaccination-indicators_files/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="vaccination-indicators_files/bootstrap-3.3.5/shim/respond.min.js"></script>
+<style>h1 {font-size: 34px;}
+       h1.title {font-size: 38px;}
+       h2 {font-size: 30px;}
+       h3 {font-size: 24px;}
+       h4 {font-size: 18px;}
+       h5 {font-size: 16px;}
+       h6 {font-size: 12px;}
+       code {color: inherit; background-color: rgba(0, 0, 0, 0.04);}
+       pre:not([class]) { background-color: white }</style>
+<script src="vaccination-indicators_files/navigation-1.1/tabsets.js"></script>
+<link href="vaccination-indicators_files/highlightjs-9.12.0/default.css" rel="stylesheet" />
+<script src="vaccination-indicators_files/highlightjs-9.12.0/highlight.js"></script>
+
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
+
+<style type="text/css">code{white-space: pre;}</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+img {
+  max-width:100%;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+pre code {
+  padding: 0;
+}
+</style>
+
+
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "&#xe258;";
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<!-- code folding -->
+
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+
+
+<div id="header">
+
+
+
+<h1 class="title toc-ignore">Vaccination</h1>
+<h4 class="author">FD</h4>
+
+</div>
+
+
+<div id="initializations" class="section level1">
+<h1>Initializations</h1>
+<pre class="r"><code>runComputations &lt;- FALSE</code></pre>
+</div>
+<div id="load-and-clean-data" class="section level1">
+<h1>Load and clean data</h1>
+<ul>
+<li>Indicators</li>
+</ul>
+<pre class="r"><code># The data have been dealt with in &quot;0_INSEE_predictors.R&quot; and saved as RData
+load(&quot;../data/predictors.RData&quot;)</code></pre>
+<ul>
+<li>Vaccination</li>
+</ul>
+<pre class="r"><code># Source vaccination data
+source(&quot;load-clean_vaccination.R&quot;)</code></pre>
+<ul>
+<li>Dates</li>
+</ul>
+<pre class="r"><code># Get all dates in the vaccination dataset
+vaccDates &lt;- sort(unique(vacc$date))
+range(vaccDates)</code></pre>
+<pre><code>## [1] &quot;2021-01-03&quot; &quot;2022-02-20&quot;</code></pre>
+<pre class="r"><code># Define specific dates
+date1 &lt;- &quot;2021-07-11&quot; # Just before pass sanitaire announcement
+date2 &lt;- &quot;2021-08-08&quot; # Just before pass sanitaire comes into force
+date3 &lt;- &quot;2021-08-29&quot; # Before back to school
+date4 &lt;- &quot;2022-01-02&quot; # Last date of the year</code></pre>
+</div>
+<div id="define-analysis-functions" class="section level1">
+<h1>Define analysis functions</h1>
+<pre class="r"><code># Functions to discretize the data
+source(&quot;1_functions-quantiles.R&quot;)
+# `discretizeQ`
+
+# Functions to recompute vaccination rates
+source(&quot;1_functions-adjustAges.R&quot;)
+
+# Other
+invlogit &lt;- function(x){exp(x)/(1 + exp(x))}
+
+uniqueNoNA &lt;- function(x){
+  out &lt;- unique(x)
+  out &lt;- out[!is.na(out)]
+  out
+}
+
+# Logistic model
+source(&quot;1_functions-logisticRegression.R&quot;)
+
+# Odds ratios
+source(&quot;1_functions-oddsRatios.R&quot;)
+
+# Functions for plotting
+source(&quot;2_plot-manhattan.R&quot;)</code></pre>
+<p><img src="vaccination-indicators_files/figure-html/unnamed-chunk-4-1.png" width="672" /></p>
+<pre class="r"><code>source(&quot;2_plot-overTime.R&quot;)</code></pre>
+</div>
+<div id="computation" class="section level1">
+<h1>Computation</h1>
+<div id="across-median-comparison" class="section level2">
+<h2>Across median comparison</h2>
+<pre class="r"><code>if(runComputations){
+  # Define the combinations of parameters to be tested
+  parmsLR &lt;- expand.grid(varPred = names(dat.nocorr)[-1], 
+                         thedate = c(date1, date2, date3, date4), 
+                         predTransform = &quot;discretize_factor&quot;, 
+                         vaccAge = &quot;adults&quot;, 
+                         by.prbs = 0.5, 
+                         permutation = FALSE,
+                         stringsAsFactors = FALSE)
+  # Permutation 
+  # Number of repetitions
+  nrep &lt;- 1000
+  # Base combination of parameters
+  tmpparmsPerm &lt;- expand.grid(varPred = &quot;French_nlty&quot;, 
+                              thedate = c(date1, date2, date3, date4), 
+                              predTransform = &quot;discretize_factor&quot;, 
+                              vaccAge = &quot;adults&quot;, 
+                              by.prbs = 0.5, 
+                              permutation = TRUE,
+                              stringsAsFactors = FALSE)
+  # Add repeated parameters
+  for(i in 1:nrep){
+    parmsLR &lt;- rbind(parmsLR, tmpparmsPerm)
+  }
+  rm(tmpparmsPerm)
+  
+  # Initialize output
+  out &lt;- as.data.frame(matrix(NA, ncol = 8, nrow = nrow(parmsLR)))
+  cat(nrow(parmsLR), &quot; combinations to be tested\n&quot;)
+  # Compute OR for each combination of parameters
+  for(i in 1:nrow(parmsLR)){
+    if(i %% 10 == 0) cat(i, &quot;&quot;) # Print counter
+    # Compute the logistic regression on this combination of parameters
+    mdl &lt;- do.call(getLogReg, parmsLR[i, ])
+    # Extract the odds ratios
+    out[i, ] &lt;- extractOR(mdl)
+  }
+  names(out) &lt;- names(extractOR(mdl))
+  
+  # Add the parameters
+  outLR &lt;- cbind(parmsLR, out)
+  
+  # Add type of predictor information
+  outLR$typePred &lt;- dicPred[outLR$varPred]
+  # Full names
+  outLR$typePredFull &lt;- dic.fullpred[outLR$typePred]
+  
+  save(outLR, file = &quot;outLR.RData&quot;)
+  
+}</code></pre>
+<pre class="r"><code>load(&quot;outLR.RData&quot;)
+
+# PLOT
+plotManhattan(outLR, ntop = 5)</code></pre>
+<p><img src="vaccination-indicators_files/figure-html/manhattan_median-1.png" width="672" /><img src="vaccination-indicators_files/figure-html/manhattan_median-2.png" width="672" /><img src="vaccination-indicators_files/figure-html/manhattan_median-3.png" width="672" /><img src="vaccination-indicators_files/figure-html/manhattan_median-4.png" width="672" /></p>
+</div>
+<div id="by-deciles-quantitatively-adjusting-ages" class="section level2">
+<h2>By deciles, quantitatively, adjusting ages</h2>
+<pre class="r"><code>if(runComputations){
+  # Define the combinations of parameters to be tested
+  parmsDec &lt;- expand.grid(varPred = names(dat.nocorr)[-1], 
+                          thedate = c(date1, date2, date3, date4), 
+                          predTransform = &quot;discretize&quot;, 
+                          vaccAge = &quot;by_age&quot;, 
+                          by.prbs = 0.1, 
+                          permutation = FALSE,
+                          stringsAsFactors = FALSE)
+  
+  # Permutation
+  # Base combination of parameters
+  tmpparmsPerm &lt;- expand.grid(varPred = &quot;French_nlty&quot;, 
+                              thedate = c(date1, date2, date3, date4), 
+                              predTransform = &quot;discretize&quot;, 
+                              vaccAge = &quot;by_age&quot;, 
+                              by.prbs = 0.1, 
+                              permutation = TRUE,
+                              stringsAsFactors = FALSE)
+  # Add repeated parameters
+  for(i in 1:nrep){
+    parmsDec &lt;- rbind(parmsDec, tmpparmsPerm)
+  }
+  rm(tmpparmsPerm)
+  
+  
+  newd &lt;- expand.grid(age.f = as.factor(ages), pred.std = 1:10)
+  
+  
+  cat(nrow(parmsDec), &quot; combinations to be tested\n&quot;)
+  
+  
+  out &lt;- as.data.frame(matrix(NA, ncol = 4, nrow = nrow(parmsDec)))
+  
+  # Compute OR for each combination of parameters
+  for(i in 1:nrow(parmsDec)){
+    if(i %% 10 == 0) cat(i, &quot;&quot;) # Print counter
+    # Compute the logistic regression on this combination of parameters
+    mdl &lt;- do.call(getLogReg, parmsDec[i, ])
+    # Predicted values
+    predsC &lt;- adjustedPredict(mdl, newd, includeChildren = TRUE)
+    predsA &lt;- adjustedPredict(mdl, newd, includeChildren = FALSE)
+    
+    # Compute odds ratios
+    ORC &lt;- getORfromPredict(c(predsC[predsC$pred.std == 10, &quot;adjustedRate&quot;], predsC[predsC$pred.std == 1, &quot;adjustedRate&quot;]))
+    ORA &lt;- getORfromPredict(c(predsA[predsA$pred.std == 10, &quot;adjustedRate&quot;], predsA[predsA$pred.std == 1, &quot;adjustedRate&quot;]))
+    
+    out[i, ] &lt;- c(ORC, ORA, max(ORC, 1/ORC), max(ORA, 1/ORA))
+  }
+  names(out) &lt;- c(&quot;OR.withChildren&quot;, &quot;OR.adults&quot;, &quot;OR.abs.withChildren&quot;, &quot;OR.abs.adults&quot;)
+  dim(out)
+  # Add the parameters
+  outDec &lt;- cbind(parmsDec, out)
+  # Add type of predictor information
+  outDec$typePred &lt;- dicPred[outDec$varPred]
+  # Full names
+  outDec$typePredFull &lt;- dic.fullpred[outDec$typePred]
+  
+  save(outDec, file = &quot;outDec.RData&quot;)
+  
+}</code></pre>
+<pre class="r"><code>load(&quot;outDec.RData&quot;)
+
+suffix &lt;- &quot;.withChildren&quot;
+
+xx &lt;- outDec
+xx$OR &lt;- outDec[, paste0(&quot;OR&quot;, suffix)]
+xx$OR.abs &lt;- outDec[, paste0(&quot;OR.abs&quot;, suffix)]
+xx$OR.abs.CI.max &lt;- outDec[, paste0(&quot;OR.abs&quot;, suffix)]
+
+plotManhattan(xx, ntop = 5)</code></pre>
+<p><img src="vaccination-indicators_files/figure-html/manhattan_decilesQ_withChildren-1.png" width="672" /><img src="vaccination-indicators_files/figure-html/manhattan_decilesQ_withChildren-2.png" width="672" /><img src="vaccination-indicators_files/figure-html/manhattan_decilesQ_withChildren-3.png" width="672" /><img src="vaccination-indicators_files/figure-html/manhattan_decilesQ_withChildren-4.png" width="672" /></p>
+<pre class="r"><code>suffix &lt;- &quot;.adults&quot;
+
+xx &lt;- outDec
+xx$OR &lt;- outDec[, paste0(&quot;OR&quot;, suffix)]
+xx$OR.abs &lt;- outDec[, paste0(&quot;OR.abs&quot;, suffix)]
+xx$OR.abs.CI.max &lt;- outDec[, paste0(&quot;OR.abs&quot;, suffix)]
+
+plotManhattan(xx, ntop = 5)</code></pre>
+<p><img src="vaccination-indicators_files/figure-html/manhattan_decilesQ_adultsOnly-1.png" width="672" /><img src="vaccination-indicators_files/figure-html/manhattan_decilesQ_adultsOnly-2.png" width="672" /><img src="vaccination-indicators_files/figure-html/manhattan_decilesQ_adultsOnly-3.png" width="672" /><img src="vaccination-indicators_files/figure-html/manhattan_decilesQ_adultsOnly-4.png" width="672" /></p>
+</div>
+<div id="over-time" class="section level2">
+<h2>Over time</h2>
+<pre class="r"><code>if(runComputations){
+  dates &lt;- sort(unique(vacc$date))
+  minDate &lt;- &quot;2021-05-01&quot;
+  dates &lt;- dates[dates &gt;= minDate]
+  
+  # Define the combinations of parameters to be tested
+  parmsTime &lt;- expand.grid(varPred = c(&quot;Unemployment_Benef&quot;, &quot;Immigrant&quot;, &quot;Asselineau&quot;), 
+                           thedate = dates, 
+                           predTransform = &quot;discretize_factor&quot;, 
+                           vaccAge = &quot;by_age&quot;, 
+                           by.prbs = 0.1, 
+                           permutation = FALSE,
+                           stringsAsFactors = FALSE)
+  
+  dim(parmsTime)
+  
+  newd &lt;- expand.grid(age.f = as.factor(ages), pred.std = as.factor(1:10))
+  
+  
+  # Initialize output
+  outC &lt;- outA &lt;- as.data.frame(matrix(NA, ncol = 10, nrow = nrow(parmsTime)))
+  
+  # Compute OR for each combination of parameters
+  for(i in 1:nrow(parmsTime)){
+    if(i %% 10 == 0) cat(i, &quot;&quot;) # Print counter
+    # Compute the logistic regression on this combination of parameters
+    mdl &lt;- do.call(getLogReg, parmsTime[i, ])
+    # Predicted values
+    predsC &lt;- adjustedPredict(mdl, newd, includeChildren = TRUE)
+    predsA &lt;- adjustedPredict(mdl, newd, includeChildren = FALSE)
+    
+    # Save
+    outC[i, ] &lt;- predsC$adjustedRate
+    outA[i, ] &lt;- predsA$adjustedRate
+    
+  }
+  
+  outC &lt;- cbind(parmsTime, outC)
+  outA &lt;- cbind(parmsTime, outA)
+  
+  save(outC, outA, dates, file = &quot;outTime.RData&quot;)
+
+}</code></pre>
+<pre class="r"><code>load(&quot;outTime.RData&quot;)
+
+plotPropTime(outC)</code></pre>
+<p><img src="vaccination-indicators_files/figure-html/overtime_withChildren-1.png" width="672" /><img src="vaccination-indicators_files/figure-html/overtime_withChildren-2.png" width="672" /><img src="vaccination-indicators_files/figure-html/overtime_withChildren-3.png" width="672" /></p>
+<pre class="r"><code>plotPropTime(outA)</code></pre>
+<p><img src="vaccination-indicators_files/figure-html/overtime_adultsOnly-1.png" width="672" /><img src="vaccination-indicators_files/figure-html/overtime_adultsOnly-2.png" width="672" /><img src="vaccination-indicators_files/figure-html/overtime_adultsOnly-3.png" width="672" /></p>
+</div>
+</div>
+<div id="geographic" class="section level1">
+<h1>Geographic</h1>
+<pre class="r"><code>library(mapsf)</code></pre>
+<pre><code>## Loading required package: sf</code></pre>
+<pre><code>## Linking to GEOS 3.9.1, GDAL 3.3.1, PROJ 8.1.0</code></pre>
+<pre class="r"><code># Geographic information for maps
+load(&quot;../data/mapFiles_withDepReg.RData&quot;)
+load(&quot;../data/chefslieux.RData&quot;)</code></pre>
+<pre class="r"><code>#varPred &lt;- &quot;X1564_OtherInactive_amg_NW&quot;
+
+source(&quot;2_plot-map.R&quot;)
+plotMapVar(&quot;Unemployment_Benef&quot;, byp = 0.1)</code></pre>
+<p><img src="vaccination-indicators_files/figure-html/unnamed-chunk-9-1.png" width="672" /></p>
+<pre class="r"><code>plotMapVar(&quot;Unemployment_Benef&quot;, byp = 0.5)</code></pre>
+<p><img src="vaccination-indicators_files/figure-html/unnamed-chunk-10-1.png" width="672" /></p>
+<pre class="r"><code>plotMapVar(&quot;Unemployment_Benef&quot;, byp = 0.1)</code></pre>
+<p><img src="vaccination-indicators_files/figure-html/unnamed-chunk-10-2.png" width="672" /></p>
+<pre class="r"><code>vv &lt;- dat.all[, &quot;Unemployment_Benef&quot;]
+plot(discretizeQ(vv, seq(0, 1, 0.1)), 
+     discretizeQ(vv, seq(0, 1, 0.5)))</code></pre>
+<p><img src="vaccination-indicators_files/figure-html/unnamed-chunk-10-3.png" width="672" /></p>
+<pre class="r"><code>plotMapVar(&quot;Asselineau&quot;, byp = 0.1)</code></pre>
+<p><img src="vaccination-indicators_files/figure-html/unnamed-chunk-10-4.png" width="672" /></p>
+<pre class="r"><code>plotMapVar(&quot;Abstention&quot;, byp = 0.1)</code></pre>
+<p><img src="vaccination-indicators_files/figure-html/unnamed-chunk-10-5.png" width="672" /></p>
+<pre class="r"><code>plotMapVar(&quot;Immigrant&quot;, byp = 0.1)</code></pre>
+<p><img src="vaccination-indicators_files/figure-html/unnamed-chunk-10-6.png" width="672" /></p>
+<pre class="r"><code>plotMapVar(&quot;X1564_OtherInactive_amg_NW&quot;, byp = 0.1)</code></pre>
+<p><img src="vaccination-indicators_files/figure-html/unnamed-chunk-10-7.png" width="672" /></p>
+</div>
+<div id="essais" class="section level1">
+<h1>Essais</h1>
+<pre class="r"><code>v &lt;- dat.all[, c(&quot;codgeo&quot;, &quot;French_nlty&quot;)]
+vx &lt;- v[which(is.na(v$French_nlty)), ]
+vx
+v[1, ]
+head(v)
+tail(v)
+
+library(inseeLocalData)
+?inseeLocalData
+
+#install.packages(&quot;insee&quot;)
+library(insee)
+
+get_dataset_list()
+
+https://api.insee.fr/donnees-locales/V0.1/donnees/geo-POP@GEO2021RP2018/EPCI-247100647.INATC</code></pre>
+<pre class="r"><code>?prcomp
+
+# Predictors
+# New dataset with the predictors
+dat2 &lt;- dat.nocorr[, -1]
+
+# For each predictor
+for(col in colnames(dat2)){
+  # Get the subset of the data
+  v &lt;- dat2[, col]
+  # Compute the mean value, excluding NAs
+  mv &lt;- mean(v, na.rm = TRUE)
+  # Fill in NAs with the mean
+  v[is.na(v)] &lt;- mv
+  # Put back in the table
+  dat2[, col] &lt;- v
+}
+
+pca &lt;- prcomp(dat2, center = TRUE, scale = TRUE)
+ggbiplot(pca)
+
+head(pca)
+
+library(devtools)
+install_github(&quot;vqv/ggbiplot&quot;)
+library(ggbiplot)
+
+plot(pca$x[, c(&quot;PC1&quot;, &quot;PC2&quot;)])
+
+pcax &lt;- as.data.frame(pca$x)
+pcax$codgeo &lt;- dat.nocorr$codgeo
+
+thedate &lt;- date3
+sub &lt;- vacc[which(vacc$date == thedate &amp; vacc$classe_age != &quot;TOUT_AGE&quot;), ]
+subb &lt;- adultVacc(sub)
+
+sub3 &lt;- merge(subb, pcax, all = TRUE, by = &quot;codgeo&quot;)
+sub3$typeTaux &lt;- discretizeQ(sub3$taux_cumu, prbs = seq(0, 1, by = 0.1))
+palCat &lt;- rev(met.brewer(&quot;Hiroshige&quot;, n = 10, type = &quot;continuous&quot;))
+names(palCat) &lt;- 1:10
+
+plot(sub3$PC1, sub3$PC2, col = palCat[sub3$typeTaux], pch = 16)
+
+str(pca)
+head(sub3)
+dim(subb)
+dim(pcax)  
+
+sort(pca$rotation[, &quot;PC1&quot;], decreasing = TRUE)[1:30]
+sort(pca$rotation[, &quot;PC2&quot;], decreasing = TRUE)[1:30]
+
+head(pca)
+summary(pca)
+
+pca$sdev / sum(pca$sdev)
+str(pca)
+
+length(pca$rotation[, &quot;PC2&quot;])
+length(subb$taux_cumu)
+
+plot(sub3$PC2, sub3$taux_cumu)
+
+out &lt;- matrix(NA, nrow = (ncol(pcax) - 1), ncol = 4)
+for(i in 1:(ncol(pcax) - 1)){
+  mdl &lt;- cor.test(sub3[, paste0(&quot;PC&quot;, i)], sub3$taux_cumu)
+  out[i, ] &lt;- c(mdl$estimate, mdl$conf.int, mdl$p.value)
+}
+out &lt;- as.data.frame(out)
+names(out) &lt;- c(&quot;estimate&quot;, &quot;ci1&quot;, &quot;ci2&quot;, &quot;pval&quot;)
+out$PC &lt;- seq_len(nrow(out))
+
+out[order(abs(out$estimate), decreasing = TRUE), ][1:5, ]
+ii &lt;- out[order(abs(out$estimate), decreasing = TRUE), ][1:5, &quot;PC&quot;]
+
+# Composition of the PCs
+for(i in ii){
+  print(i)
+  print(t(sort(pca$rotation[, paste0(&quot;PC&quot;, i)], decreasing = TRUE)[1:20])) 
+}
+sort(pca$rotation[, &quot;PC2&quot;], decreasing = TRUE)[1:30]
+
+plot(sort(abs(out$estimate)))
+
+range(out$estimate)
+
+head(out)
+mdl2 &lt;- cor.test(sub3$PC2, sub3$taux_cumu)
+mdl2
+
+mdl1 &lt;- cor.test(sub3$PC1, sub3$taux_cumu)
+mdl1
+str(mdl1)
+summary(mdl1)
+mdl3 &lt;- cor.test(sub3$PC3, sub3$taux_cumu)
+mdl3
+
+summary(mdl)
+
+library(nlme)
+?gls
+         gls(divspe ~ loggrad_urb+grad_agrimean, method = &quot;ML&quot;, 
+corr=corExp(c(300000,0.7), form=~x_lambert93+y_lambert93, nugget=T), 
+na.action = na.omit, data = df)</code></pre>
+</div>
+
+
+
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open');
+  });
+});
+</script>
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>
