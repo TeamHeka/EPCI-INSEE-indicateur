@@ -13,9 +13,9 @@ plotPropTime <- function(out){
   # For each variable
   for(varPred in unique(out$varPred)){
     # Initialize plot
-    par(mar = c(3, 4, 2, 2), mgp = c(2.5, 0.5, 0), las = 1, tck = - 0.01)
+    par(mar = c(3, 4, 2, 2), mgp = c(1.75, 0.25, 0), las = 1, tck = - 0.01)
     plot(0, xlim = range(as.Date(dates)), ylim = c(0, 1), axes = FALSE, 
-         xlab = "date", ylab = "Adjusted vaccination rate", yaxs = "i", 
+         xlab = "date", ylab = "Adjusted vaccination rate", yaxs = "i", xaxs = "i", 
          main = varPred)
     axis(1, at = mnths, labels = format(mnths, "%b"))
     axis(2)

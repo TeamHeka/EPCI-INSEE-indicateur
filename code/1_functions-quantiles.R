@@ -43,8 +43,8 @@ discretizeQ <- function(v, prbs = seq(0, 1, by = 0.05)){
   qq <- c(quantile(v, probs = prbs, na.rm = TRUE))
   
   # Extend the extreme values to make sure that they are included later
-  qq[1] <- 0.5 * qq[1] # 0%
-  qq[length(qq)] <- 1.5 * qq[length(qq)] # 100%
+  qq[1] <- qq[1] - abs(0.5 * qq[1]) # 0%
+  qq[length(qq)] <- qq[length(qq)] + abs(0.5 * qq[length(qq)]) # 100%
   
   # Add noise to avoid issues with the `cut` function when data are too close
   noise <- c(0, runif(length(prbs)-2, max = 10^(-6)), 0)

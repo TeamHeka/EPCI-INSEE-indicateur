@@ -26,6 +26,9 @@ tmpEPCI <- matrix(unlist(strsplit(geoEPCI$Geo.Point, ",")), byrow = TRUE, ncol =
 geoEPCI$latitude <- as.numeric(tmpEPCI[, 1])
 geoEPCI$longitude <- as.numeric(tmpEPCI[, 2])
 
+dim(geoEPCI)
+dim(geoCom)
+
 #### MERGE WITH CODGEO ####
 
 # Check whether codgeo is found in the data
@@ -101,3 +104,4 @@ dat.GEO <- merge(dat.GEO, tmp[, c("codgeo", "densite")], by = "codgeo")
 write.csv(dat.GEO, "../data/GEO_brut.csv", row.names = FALSE)
 system("git add ../data/GEO_brut.csv")
 system("git commit -m 'update GEO dataset'")
+

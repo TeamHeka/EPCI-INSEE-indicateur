@@ -14,6 +14,10 @@ sortData <- FALSE
 # Variables with absolute correlation above this threshold are removed from the analysis
 thrCor <- 0.95
 
+# Threshold for missing values
+# We will not consider variables with more than this threshold of missing values
+thrMissingVals <- 0.05
+
 ## FUNCTIONS
 
 # Function to check correlations
@@ -153,12 +157,26 @@ if(sortData){
 }
 
 
+#### CHECK MISSING VALUES ####
+
+# Count missing values
+missingvals <- apply(dat.all, 2, function(x) sum(is.na(x)))
+propMissingVals <- missingvals / nrow(dat.all)
+  
+# Show them
+sort(round(propMissingVals, 4), decreasing = TRUE)
+
+dat.removeMissing <- dat.all[, which(propMissingVals <= thrMissingVals)]
+
+dim(dat.all)
+dim(dat.removeMissing)
+
 #### CHECK CORRELATIONS ####
 
 ## Check correlations
 # Get all pairwise correlations
 # and take absolute value
-cormat <- abs(cor(dat.all[, -1], use = "pairwise.complete.obs"))
+cormat <- abs(cor(dat.removeMissing[, -1], use = "pairwise.complete.obs"))
 diag(cormat) <- NA # Remove diagonal
 
 # Sanity check
@@ -184,23 +202,25 @@ stopifnot(nrow(indOverThr)/2 == nrow(triangle))
 #   Get the names of the correlated columns
 correlated <- unique(colnames(cormat)[triangle[, 2]])
 #   Get their indices (col positions)
-i.corr <-   which(is.element(names(dat.all), correlated))
+i.corr <-   which(is.element(names(dat.removeMissing), correlated))
 #   Remove them
-dat.nocorr <- dat.all[, -i.corr]
+dat.nocorr <- dat.removeMissing[, -i.corr]
 
 dim(dat.nocorr)
 
 # Print names of the removed columns
-names(dat.all)[i.corr]
+names(dat.removeMissing)[i.corr]
 
 # Sanity check
-all(sort(names(dat.all)[i.corr]) == sort(correlated))
+all(sort(names(dat.removeMissing)[i.corr]) == sort(correlated))
 
 # Print names of the columns we keep
 sort(names(dat.nocorr))
 
+dim(dat.nocorr)
+
 # Get names of all the predictors
-predNames <- names(dat.all)
+predNames <- names(dat.removeMissing)
 predNames <- predNames[-1] # Remove codgeo
 
 #............................................................................
