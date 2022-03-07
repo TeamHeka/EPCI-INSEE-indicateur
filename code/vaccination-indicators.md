@@ -10,19 +10,14 @@ output:
   pdf_document: default
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
+
 
 # Initializations
 
-```{r, eval = FALSE, include = FALSE}
-rm(list = ls())
 
-for(i in dev.list()) dev.off()
-```
 
-```{r}
+
+```r
 runComputations <- FALSE
 ```
 
@@ -31,25 +26,34 @@ runComputations <- FALSE
 
 -  Indicators 
 
-```{r loadPredictors}
+
+```r
 # The data have been dealt with in "0_INSEE_predictors.R" and saved as RData
 load("../data/predictors.RData")
 ```
 
 -  Vaccination
 
-```{r loadVaccinationData}
+
+```r
 # Source vaccination data
 source("load-clean_vaccination.R")
 ```
 
 -  Dates
 
-```{r}
+
+```r
 # Get all dates in the vaccination dataset
 vaccDates <- sort(unique(vacc$date))
 range(vaccDates)
+```
 
+```
+## [1] "2021-01-03" "2022-02-20"
+```
+
+```r
 # Define specific dates
 date1 <- "2021-07-11" # Just before pass sanitaire announcement
 date2 <- "2021-08-08" # Just before pass sanitaire comes into force
@@ -59,7 +63,8 @@ date4 <- "2022-01-02" # Last date of the year
 
 # Define analysis functions
 
-```{r results = 'hide'}
+
+```r
 # Functions to discretize the data
 source("1_functions-quantiles.R")
 # `discretizeQ`
@@ -84,6 +89,11 @@ source("1_functions-oddsRatios.R")
 
 # Functions for plotting
 source("2_plot-manhattan.R")
+```
+
+![](vaccination-indicators_files/figure-html/unnamed-chunk-4-1.png)<!-- -->
+
+```r
 source("2_plot-overTime.R")
 ```
 
@@ -91,7 +101,8 @@ source("2_plot-overTime.R")
 
 ## Across median comparison 
 
-```{r}
+
+```r
 if(runComputations){
   # Define the combinations of parameters to be tested
   parmsLR <- expand.grid(varPred = names(dat.nocorr)[-1], 
@@ -145,16 +156,20 @@ if(runComputations){
 ```
 
 
-```{r manhattan_median}
+
+```r
 load("outLR.RData")
 
 # PLOT
 plotManhattan(outLR, ntop = 5)
 ```
 
+![](vaccination-indicators_files/figure-html/manhattan_median-1.png)<!-- -->![](vaccination-indicators_files/figure-html/manhattan_median-2.png)<!-- -->![](vaccination-indicators_files/figure-html/manhattan_median-3.png)<!-- -->![](vaccination-indicators_files/figure-html/manhattan_median-4.png)<!-- -->
+
 ## By deciles, quantitatively, adjusting ages
 
-```{r}
+
+```r
 if(runComputations){
   # Define the combinations of parameters to be tested
   parmsDec <- expand.grid(varPred = names(dat.nocorr)[-1], 
@@ -219,7 +234,8 @@ if(runComputations){
 ```
 
 
-```{r manhattan_decilesQ_withChildren}
+
+```r
 load("outDec.RData")
 
 suffix <- ".withChildren"
@@ -232,8 +248,11 @@ xx$OR.abs.CI.max <- outDec[, paste0("OR.abs", suffix)]
 plotManhattan(xx, ntop = 5)
 ```
 
+![](vaccination-indicators_files/figure-html/manhattan_decilesQ_withChildren-1.png)<!-- -->![](vaccination-indicators_files/figure-html/manhattan_decilesQ_withChildren-2.png)<!-- -->![](vaccination-indicators_files/figure-html/manhattan_decilesQ_withChildren-3.png)<!-- -->![](vaccination-indicators_files/figure-html/manhattan_decilesQ_withChildren-4.png)<!-- -->
 
-```{r manhattan_decilesQ_adultsOnly}
+
+
+```r
 suffix <- ".adults"
 
 xx <- outDec
@@ -242,12 +261,14 @@ xx$OR.abs <- outDec[, paste0("OR.abs", suffix)]
 xx$OR.abs.CI.max <- outDec[, paste0("OR.abs", suffix)]
 
 plotManhattan(xx, ntop = 5)
-
 ```
+
+![](vaccination-indicators_files/figure-html/manhattan_decilesQ_adultsOnly-1.png)<!-- -->![](vaccination-indicators_files/figure-html/manhattan_decilesQ_adultsOnly-2.png)<!-- -->![](vaccination-indicators_files/figure-html/manhattan_decilesQ_adultsOnly-3.png)<!-- -->![](vaccination-indicators_files/figure-html/manhattan_decilesQ_adultsOnly-4.png)<!-- -->
 
 ## Over time
 
-```{r}
+
+```r
 if(runComputations){
   dates <- sort(unique(vacc$date))
   minDate <- "2021-05-01"
@@ -294,57 +315,105 @@ if(runComputations){
 ```
 
 
-```{r overtime_withChildren}
+
+```r
 load("outTime.RData")
 
 plotPropTime(outC)
-
 ```
 
-```{r overtime_adultsOnly}
+![](vaccination-indicators_files/figure-html/overtime_withChildren-1.png)<!-- -->![](vaccination-indicators_files/figure-html/overtime_withChildren-2.png)<!-- -->![](vaccination-indicators_files/figure-html/overtime_withChildren-3.png)<!-- -->
+
+
+```r
 plotPropTime(outA)
-
 ```
+
+![](vaccination-indicators_files/figure-html/overtime_adultsOnly-1.png)<!-- -->![](vaccination-indicators_files/figure-html/overtime_adultsOnly-2.png)<!-- -->![](vaccination-indicators_files/figure-html/overtime_adultsOnly-3.png)<!-- -->
 
 # Geographic
 
-```{r}
+
+```r
 library(mapsf)
+```
+
+```
+## Loading required package: sf
+```
+
+```
+## Linking to GEOS 3.9.1, GDAL 3.3.1, PROJ 8.1.0
+```
+
+```r
 # Geographic information for maps
 load("../data/mapFiles_withDepReg.RData")
 load("../data/chefslieux.RData")
 ```
 
 
-```{r}
+
+```r
 #varPred <- "X1564_OtherInactive_amg_NW"
 
 source("2_plot-map.R")
 plotMapVar("Unemployment_Benef", byp = 0.1)
-
 ```
 
+![](vaccination-indicators_files/figure-html/unnamed-chunk-9-1.png)<!-- -->
 
-```{r}
+
+
+```r
 plotMapVar("Unemployment_Benef", byp = 0.5)
-plotMapVar("Unemployment_Benef", byp = 0.1)
+```
 
+![](vaccination-indicators_files/figure-html/unnamed-chunk-10-1.png)<!-- -->
+
+```r
+plotMapVar("Unemployment_Benef", byp = 0.1)
+```
+
+![](vaccination-indicators_files/figure-html/unnamed-chunk-10-2.png)<!-- -->
+
+```r
 vv <- dat.all[, "Unemployment_Benef"]
 plot(discretizeQ(vv, seq(0, 1, 0.1)), 
      discretizeQ(vv, seq(0, 1, 0.5)))
+```
 
+![](vaccination-indicators_files/figure-html/unnamed-chunk-10-3.png)<!-- -->
+
+```r
 plotMapVar("Asselineau", byp = 0.1)
-plotMapVar("Abstention", byp = 0.1)
-plotMapVar("Immigrant", byp = 0.1)
+```
 
+![](vaccination-indicators_files/figure-html/unnamed-chunk-10-4.png)<!-- -->
+
+```r
+plotMapVar("Abstention", byp = 0.1)
+```
+
+![](vaccination-indicators_files/figure-html/unnamed-chunk-10-5.png)<!-- -->
+
+```r
+plotMapVar("Immigrant", byp = 0.1)
+```
+
+![](vaccination-indicators_files/figure-html/unnamed-chunk-10-6.png)<!-- -->
+
+```r
 plotMapVar("X1564_OtherInactive_amg_NW", byp = 0.1)
 ```
+
+![](vaccination-indicators_files/figure-html/unnamed-chunk-10-7.png)<!-- -->
 
 # Essais
 
 
-```{r, eval = FALSE}
 
+```r
 v <- dat.all[, c("codgeo", "French_nlty")]
 vx <- v[which(is.na(v$French_nlty)), ]
 vx
@@ -361,11 +430,11 @@ library(insee)
 get_dataset_list()
 
 https://api.insee.fr/donnees-locales/V0.1/donnees/geo-POP@GEO2021RP2018/EPCI-247100647.INATC
-
 ```
 
 
-```{r, eval = FALSE}
+
+```r
 ?prcomp
 
 # Predictors
@@ -469,6 +538,5 @@ library(nlme)
          gls(divspe ~ loggrad_urb+grad_agrimean, method = "ML", 
 corr=corExp(c(300000,0.7), form=~x_lambert93+y_lambert93, nugget=T), 
 na.action = na.omit, data = df)
-
 ```
 

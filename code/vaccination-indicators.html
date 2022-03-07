@@ -30,6 +30,9 @@
        h6 {font-size: 12px;}
        code {color: inherit; background-color: rgba(0, 0, 0, 0.04);}
        pre:not([class]) { background-color: white }</style>
+<script src="vaccination-indicators_files/jqueryui-1.11.4/jquery-ui.min.js"></script>
+<link href="vaccination-indicators_files/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
+<script src="vaccination-indicators_files/tocify-1.9.1/jquery.tocify.js"></script>
 <script src="vaccination-indicators_files/navigation-1.1/tabsets.js"></script>
 <link href="vaccination-indicators_files/highlightjs-9.12.0/default.css" rel="stylesheet" />
 <script src="vaccination-indicators_files/highlightjs-9.12.0/highlight.js"></script>
@@ -149,6 +152,69 @@ pre code {
 
 
 
+<style type="text/css">
+
+#TOC {
+  margin: 25px 0px 20px 0px;
+}
+@media (max-width: 768px) {
+#TOC {
+  position: relative;
+  width: 100%;
+}
+}
+
+@media print {
+.toc-content {
+  /* see https://github.com/w3c/csswg-drafts/issues/4434 */
+  float: right;
+}
+}
+
+.toc-content {
+  padding-left: 30px;
+  padding-right: 40px;
+}
+
+div.main-container {
+  max-width: 1200px;
+}
+
+div.tocify {
+  width: 20%;
+  max-width: 260px;
+  max-height: 85%;
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  div.tocify {
+    width: 25%;
+  }
+}
+
+@media (max-width: 767px) {
+  div.tocify {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.tocify ul, .tocify li {
+  line-height: 20px;
+}
+
+.tocify-subheader .tocify-item {
+  font-size: 0.90em;
+}
+
+.tocify .list-group-item {
+  border-radius: 0px;
+}
+
+
+</style>
+
+
 
 </head>
 
@@ -156,6 +222,16 @@ pre code {
 
 
 <div class="container-fluid main-container">
+
+
+<!-- setup 3col/9col grid for toc_float and main content  -->
+<div class="row">
+<div class="col-sm-12 col-md-4 col-lg-3">
+<div id="TOC" class="tocify">
+</div>
+</div>
+
+<div class="toc-content col-sm-12 col-md-8 col-lg-9">
 
 
 
@@ -225,7 +301,7 @@ source(&quot;1_functions-oddsRatios.R&quot;)
 
 # Functions for plotting
 source(&quot;2_plot-manhattan.R&quot;)</code></pre>
-<p><img src="vaccination-indicators_files/figure-html/unnamed-chunk-4-1.png" width="672" /></p>
+<p><img src="vaccination-indicators_files/figure-html/unnamed-chunk-4-1.png" /><!-- --></p>
 <pre class="r"><code>source(&quot;2_plot-overTime.R&quot;)</code></pre>
 </div>
 <div id="computation" class="section level1">
@@ -286,7 +362,7 @@ source(&quot;2_plot-manhattan.R&quot;)</code></pre>
 
 # PLOT
 plotManhattan(outLR, ntop = 5)</code></pre>
-<p><img src="vaccination-indicators_files/figure-html/manhattan_median-1.png" width="672" /><img src="vaccination-indicators_files/figure-html/manhattan_median-2.png" width="672" /><img src="vaccination-indicators_files/figure-html/manhattan_median-3.png" width="672" /><img src="vaccination-indicators_files/figure-html/manhattan_median-4.png" width="672" /></p>
+<p><img src="vaccination-indicators_files/figure-html/manhattan_median-1.png" /><!-- --><img src="vaccination-indicators_files/figure-html/manhattan_median-2.png" /><!-- --><img src="vaccination-indicators_files/figure-html/manhattan_median-3.png" /><!-- --><img src="vaccination-indicators_files/figure-html/manhattan_median-4.png" /><!-- --></p>
 </div>
 <div id="by-deciles-quantitatively-adjusting-ages" class="section level2">
 <h2>By deciles, quantitatively, adjusting ages</h2>
@@ -361,7 +437,7 @@ xx$OR.abs &lt;- outDec[, paste0(&quot;OR.abs&quot;, suffix)]
 xx$OR.abs.CI.max &lt;- outDec[, paste0(&quot;OR.abs&quot;, suffix)]
 
 plotManhattan(xx, ntop = 5)</code></pre>
-<p><img src="vaccination-indicators_files/figure-html/manhattan_decilesQ_withChildren-1.png" width="672" /><img src="vaccination-indicators_files/figure-html/manhattan_decilesQ_withChildren-2.png" width="672" /><img src="vaccination-indicators_files/figure-html/manhattan_decilesQ_withChildren-3.png" width="672" /><img src="vaccination-indicators_files/figure-html/manhattan_decilesQ_withChildren-4.png" width="672" /></p>
+<p><img src="vaccination-indicators_files/figure-html/manhattan_decilesQ_withChildren-1.png" /><!-- --><img src="vaccination-indicators_files/figure-html/manhattan_decilesQ_withChildren-2.png" /><!-- --><img src="vaccination-indicators_files/figure-html/manhattan_decilesQ_withChildren-3.png" /><!-- --><img src="vaccination-indicators_files/figure-html/manhattan_decilesQ_withChildren-4.png" /><!-- --></p>
 <pre class="r"><code>suffix &lt;- &quot;.adults&quot;
 
 xx &lt;- outDec
@@ -370,7 +446,7 @@ xx$OR.abs &lt;- outDec[, paste0(&quot;OR.abs&quot;, suffix)]
 xx$OR.abs.CI.max &lt;- outDec[, paste0(&quot;OR.abs&quot;, suffix)]
 
 plotManhattan(xx, ntop = 5)</code></pre>
-<p><img src="vaccination-indicators_files/figure-html/manhattan_decilesQ_adultsOnly-1.png" width="672" /><img src="vaccination-indicators_files/figure-html/manhattan_decilesQ_adultsOnly-2.png" width="672" /><img src="vaccination-indicators_files/figure-html/manhattan_decilesQ_adultsOnly-3.png" width="672" /><img src="vaccination-indicators_files/figure-html/manhattan_decilesQ_adultsOnly-4.png" width="672" /></p>
+<p><img src="vaccination-indicators_files/figure-html/manhattan_decilesQ_adultsOnly-1.png" /><!-- --><img src="vaccination-indicators_files/figure-html/manhattan_decilesQ_adultsOnly-2.png" /><!-- --><img src="vaccination-indicators_files/figure-html/manhattan_decilesQ_adultsOnly-3.png" /><!-- --><img src="vaccination-indicators_files/figure-html/manhattan_decilesQ_adultsOnly-4.png" /><!-- --></p>
 </div>
 <div id="over-time" class="section level2">
 <h2>Over time</h2>
@@ -420,9 +496,9 @@ plotManhattan(xx, ntop = 5)</code></pre>
 <pre class="r"><code>load(&quot;outTime.RData&quot;)
 
 plotPropTime(outC)</code></pre>
-<p><img src="vaccination-indicators_files/figure-html/overtime_withChildren-1.png" width="672" /><img src="vaccination-indicators_files/figure-html/overtime_withChildren-2.png" width="672" /><img src="vaccination-indicators_files/figure-html/overtime_withChildren-3.png" width="672" /></p>
+<p><img src="vaccination-indicators_files/figure-html/overtime_withChildren-1.png" /><!-- --><img src="vaccination-indicators_files/figure-html/overtime_withChildren-2.png" /><!-- --><img src="vaccination-indicators_files/figure-html/overtime_withChildren-3.png" /><!-- --></p>
 <pre class="r"><code>plotPropTime(outA)</code></pre>
-<p><img src="vaccination-indicators_files/figure-html/overtime_adultsOnly-1.png" width="672" /><img src="vaccination-indicators_files/figure-html/overtime_adultsOnly-2.png" width="672" /><img src="vaccination-indicators_files/figure-html/overtime_adultsOnly-3.png" width="672" /></p>
+<p><img src="vaccination-indicators_files/figure-html/overtime_adultsOnly-1.png" /><!-- --><img src="vaccination-indicators_files/figure-html/overtime_adultsOnly-2.png" /><!-- --><img src="vaccination-indicators_files/figure-html/overtime_adultsOnly-3.png" /><!-- --></p>
 </div>
 </div>
 <div id="geographic" class="section level1">
@@ -437,23 +513,23 @@ load(&quot;../data/chefslieux.RData&quot;)</code></pre>
 
 source(&quot;2_plot-map.R&quot;)
 plotMapVar(&quot;Unemployment_Benef&quot;, byp = 0.1)</code></pre>
-<p><img src="vaccination-indicators_files/figure-html/unnamed-chunk-9-1.png" width="672" /></p>
+<p><img src="vaccination-indicators_files/figure-html/unnamed-chunk-9-1.png" /><!-- --></p>
 <pre class="r"><code>plotMapVar(&quot;Unemployment_Benef&quot;, byp = 0.5)</code></pre>
-<p><img src="vaccination-indicators_files/figure-html/unnamed-chunk-10-1.png" width="672" /></p>
+<p><img src="vaccination-indicators_files/figure-html/unnamed-chunk-10-1.png" /><!-- --></p>
 <pre class="r"><code>plotMapVar(&quot;Unemployment_Benef&quot;, byp = 0.1)</code></pre>
-<p><img src="vaccination-indicators_files/figure-html/unnamed-chunk-10-2.png" width="672" /></p>
+<p><img src="vaccination-indicators_files/figure-html/unnamed-chunk-10-2.png" /><!-- --></p>
 <pre class="r"><code>vv &lt;- dat.all[, &quot;Unemployment_Benef&quot;]
 plot(discretizeQ(vv, seq(0, 1, 0.1)), 
      discretizeQ(vv, seq(0, 1, 0.5)))</code></pre>
-<p><img src="vaccination-indicators_files/figure-html/unnamed-chunk-10-3.png" width="672" /></p>
+<p><img src="vaccination-indicators_files/figure-html/unnamed-chunk-10-3.png" /><!-- --></p>
 <pre class="r"><code>plotMapVar(&quot;Asselineau&quot;, byp = 0.1)</code></pre>
-<p><img src="vaccination-indicators_files/figure-html/unnamed-chunk-10-4.png" width="672" /></p>
+<p><img src="vaccination-indicators_files/figure-html/unnamed-chunk-10-4.png" /><!-- --></p>
 <pre class="r"><code>plotMapVar(&quot;Abstention&quot;, byp = 0.1)</code></pre>
-<p><img src="vaccination-indicators_files/figure-html/unnamed-chunk-10-5.png" width="672" /></p>
+<p><img src="vaccination-indicators_files/figure-html/unnamed-chunk-10-5.png" /><!-- --></p>
 <pre class="r"><code>plotMapVar(&quot;Immigrant&quot;, byp = 0.1)</code></pre>
-<p><img src="vaccination-indicators_files/figure-html/unnamed-chunk-10-6.png" width="672" /></p>
+<p><img src="vaccination-indicators_files/figure-html/unnamed-chunk-10-6.png" /><!-- --></p>
 <pre class="r"><code>plotMapVar(&quot;X1564_OtherInactive_amg_NW&quot;, byp = 0.1)</code></pre>
-<p><img src="vaccination-indicators_files/figure-html/unnamed-chunk-10-7.png" width="672" /></p>
+<p><img src="vaccination-indicators_files/figure-html/unnamed-chunk-10-7.png" /><!-- --></p>
 </div>
 <div id="essais" class="section level1">
 <h1>Essais</h1>
@@ -580,6 +656,8 @@ na.action = na.omit, data = df)</code></pre>
 
 
 
+</div>
+</div>
 
 </div>
 
@@ -612,6 +690,32 @@ $(document).ready(function () {
 
 <!-- code folding -->
 
+<script>
+$(document).ready(function ()  {
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_');
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
+</script>
 
 <!-- dynamically load mathjax for compatibility with self-contained -->
 <script>
