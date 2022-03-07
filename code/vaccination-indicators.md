@@ -91,8 +91,6 @@ source("1_functions-oddsRatios.R")
 source("2_plot-manhattan.R")
 ```
 
-![](vaccination-indicators_files/figure-html/unnamed-chunk-4-1.png)<!-- -->
-
 ```r
 source("2_plot-overTime.R")
 ```
@@ -378,36 +376,32 @@ plotMapVar("Unemployment_Benef", byp = 0.1)
 ![](vaccination-indicators_files/figure-html/unnamed-chunk-10-2.png)<!-- -->
 
 ```r
-vv <- dat.all[, "Unemployment_Benef"]
-plot(discretizeQ(vv, seq(0, 1, 0.1)), 
-     discretizeQ(vv, seq(0, 1, 0.5)))
+#vv <- dat.all[, "Unemployment_Benef"]
+#plot(discretizeQ(vv, seq(0, 1, 0.1)), 
+#     discretizeQ(vv, seq(0, 1, 0.5)))
+
+plotMapVar("Asselineau", byp = 0.1)
 ```
 
 ![](vaccination-indicators_files/figure-html/unnamed-chunk-10-3.png)<!-- -->
 
 ```r
-plotMapVar("Asselineau", byp = 0.1)
+plotMapVar("Abstention", byp = 0.1)
 ```
 
 ![](vaccination-indicators_files/figure-html/unnamed-chunk-10-4.png)<!-- -->
 
 ```r
-plotMapVar("Abstention", byp = 0.1)
+plotMapVar("Immigrant", byp = 0.1)
 ```
 
 ![](vaccination-indicators_files/figure-html/unnamed-chunk-10-5.png)<!-- -->
 
 ```r
-plotMapVar("Immigrant", byp = 0.1)
-```
-
-![](vaccination-indicators_files/figure-html/unnamed-chunk-10-6.png)<!-- -->
-
-```r
 plotMapVar("X1564_OtherInactive_amg_NW", byp = 0.1)
 ```
 
-![](vaccination-indicators_files/figure-html/unnamed-chunk-10-7.png)<!-- -->
+![](vaccination-indicators_files/figure-html/unnamed-chunk-10-6.png)<!-- -->
 
 # Essais
 

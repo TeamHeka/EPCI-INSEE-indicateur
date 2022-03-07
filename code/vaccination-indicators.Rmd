@@ -59,7 +59,7 @@ date4 <- "2022-01-02" # Last date of the year
 
 # Define analysis functions
 
-```{r results = 'hide'}
+```{r results = 'hide', fig.show='hide'}
 # Functions to discretize the data
 source("1_functions-quantiles.R")
 # `discretizeQ`
@@ -329,9 +329,9 @@ plotMapVar("Unemployment_Benef", byp = 0.1)
 plotMapVar("Unemployment_Benef", byp = 0.5)
 plotMapVar("Unemployment_Benef", byp = 0.1)
 
-vv <- dat.all[, "Unemployment_Benef"]
-plot(discretizeQ(vv, seq(0, 1, 0.1)), 
-     discretizeQ(vv, seq(0, 1, 0.5)))
+#vv <- dat.all[, "Unemployment_Benef"]
+#plot(discretizeQ(vv, seq(0, 1, 0.1)), 
+#     discretizeQ(vv, seq(0, 1, 0.5)))
 
 plotMapVar("Asselineau", byp = 0.1)
 plotMapVar("Abstention", byp = 0.1)
