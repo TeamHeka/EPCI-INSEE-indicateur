@@ -2,9 +2,10 @@
 title: "PassSanitaire"
 author: "FD"
 output:
-  html_document:
+  bookdown::html_document2:
     self_contained: no
     keep_md: true
+    number_sections: no
 ---
 
 
@@ -14,9 +15,9 @@ The French domestic Pass Sanitaire did not solve vaccination inequities: a natio
 
 # Abstract
 
-Context: The French sanitary pass led to an increase in vaccination rates in France, but spatial heterogeneities in vaccination rates are still striking [LG1]. To identify potential determinants of these heterogeneities and evaluate the the French sanitary pass' efficacy in reducing them, we used a data-driven approach on exhaustive nationwide data, gathering 141 socio-economic, political and geographic indicators.
+Context: Implemented during the Summer 2021, the French "Sanitary Pass" led to an increase in vaccination rates in France, but spatial heterogeneities in vaccination rates are still striking [LG1]. It morphed into a "Vaccine Pass" in early 2022. To identify potential determinants of these heterogeneities and evaluate the French Sanitary and Vaccine Pass' efficacies in reducing them, we used a data-driven approach on exhaustive nationwide data, gathering 141 socio-economic, political and geographic indicators.
 
-Methods: We considered the association between being a district above the median value of the first-dose vaccination rates and being above the median value of each indicator at four time points: week 27, (just before the sanitary pass announcement), week 31 (when the sanitary pass came fully into force), week 34 (end of the summer) and week 00 (end of data collection). We then considered the change over time of vaccination rates according to the XX most associated indicators, by deciles. 
+Methods: We considered the association between being a district above the median value of the first-dose vaccination rates and being above the median value of each indicator at different time points: just before the sanitary pass announcement (week 2021-W27), just before the sanitary pass came into force (week 2021-W31) and one month after (week 2021-W35), and the equivalent dates for the vaccine pass (weeks 2021-W49, 2022-W03, 2022-W07). We then considered the change over time of vaccination rates according to the XX most associated indicators, by deciles. 
 
 Results: The XX indicators most associated with vaccination rates were XX, XX, XX. 
 
@@ -66,12 +67,12 @@ These three datasets comprised 312 indicators. We then removed those indicators 
 
 Vaccination was accessible to all adults in France after 27 May 2021. It opened to teenagers (12-17 year olds) on 15 June 2021, and to children (5-11 year olds) on 22 December 2021. Because of this differential accessibility of vaccines, and because vaccine passport rules also differed for non-adults, we excluded the 00-19 age class from our analysis, and focused on vaccination rates among 20+ year-old individuals (hereafter "adults"). 
 
-For each indicator in our dataset, at each of the four chosen dates (weeks 2021-27, 2021-31, 2021-34, 2022-00), we considered the association between living in a district above the median of a that indicator and vaccination rates among adults. Odds ratios (OR) were computed from the output of a logistic regression. To be able to compare predictors irrespective of the direction of the effect, we considered the maximum of `OR, 1/OR` (hereafter $\overline{OR}$). 
+For each indicator in our dataset, at each of the four chosen dates (weeks 2021-W27, 2021-W31, 2021-W35, 2021-W49, 2022-W03, 2022-W07), we considered the association between living in a district above the median of a that indicator and individual first-dose vaccination rates among adults. Odds ratios (OR) were computed from the output of a logistic regression. To be able to compare predictors irrespective of the direction of the effect, we considered the maximum of `OR, 1/OR` (hereafter $\overline{OR}$). Vaccination data are at the individual level, and indicator data at the district level.  
 For each date, we determined a significance threshold by computing odds ratios on 1000 random permutations of a predictor, and identifying the value of the XX 99% percentile odd ratios ($\overline{OR}$) of these permuted data. 
 
-For representative indicators with the strongest association to vaccination data, we estimated age-adjusted vaccination rates among adults over time, for each decile of each indicator. These estimations were obtained from a logistic model taking age class into account, and adult vaccination rates were computed on a standardized age distribution matching that of metropolitain France. 
+For representative indicators with the strongest association to vaccination data, we estimated age-adjusted vaccination rates among adults over time, for each decile of each indicator (treated as a factor). These estimations were obtained from a logistic model taking age class into account, and adult vaccination rates were computed on a standardized age distribution matching that of metropolitain France. 
 
-All analysis code is available at XXX. 
+All analysis code is available at XXX; analyses were done in R version 4.0.4 (2021-02-15). 
 
 
 
@@ -88,12 +89,31 @@ All analysis code is available at XXX.
 -->
 
 
+# Results
 
-Our data included 1552 districts in mainland France (63,601,670 individuals; median district size 22,705 inhabitants; interquartile range 6,282--39,128). We associated these data with 176 socioeconomic [JA2] and 5 geographic indicators at the same geographic scales from public datasets. We allocated those indicators into categories (Activity: 12 indicators; Employment: 41 indicators; Family: 27 indicators; Geography: 5 indicators; Housing: 35 indicators; Immigration: 1 indicator; Population: 26 indicators; Revenue: 15 indicators; School: 19 indicators)
- 
-We considered the association between being a district in the lowest quartile (25th percentile) of the first-dose vaccination rate and being above the median value of each indicator. We computed odds ratios and their 95% confidence intervals at three time points: week 27 (just before the sanitary pass announcement), week 31 (when the sanitary pass came fully into force), and week 35 (end of data collection). For the two indicators achieving the highest odds ratios, we computed vaccination levels for each indicator quartile on the same dates. Analyses were done using R (v4.0.3). To enhance odds-ratio visualization, we computed Manhattan plots giving odds-ratios and their confidence intervals by socioeconomic indicators categories.
-For each week, the significance threshold is calculated by performing 1000 random permutations on the vaccination rate. Then we take the maximum OR calculated over every indicator for each permutation. Finally the threshold is fixed at the 950th value of the maximum OR sorted in ascending order. 
- 
- 
+We investigated the associations between each of the 141 indicators and first-dose vaccination rates. Two indicators were among the top five most associated one at all time points (see Figure \@ref(fig:figManhattan)): the share of local income coming from unemployment benefits (`Unemployment_Benef`) and vote for Mr Asselineau (`Asselineau`). The three other most associated indicators did not change in the later dates that we considered, and were the proportion of immigrants in the district (`Immigrant`), the district's relative position along a North-West--South-East gradient (`NO-SE`) and the proportion of overcrowded household (`Overcrowding_rate`). 
 
+GIVE NAMES OF NOT ASSOCIATED INDICATORS?
+
+GIVE VALUES IN A TABLE?
+
+<div class="figure">
+<img src="ms_files/figure-html/figManhattan-1.png" alt="Manhattan plots of the Odds ratios for each of the indicator of our dataset, by date. Left column: around the Sanitary Pass implementation; right column: around the Vaccine Pass implementation. The top five odds ratios are labelled at each time point; the arrow next to the name indicates the direction of the effect. The gray rectangle corresponds to the 99% percentile of odds ratios in the permuted data; points falling in the rectangle are considered as non-significant."  />
+<p class="caption">(\#fig:figManhattan)Manhattan plots of the Odds ratios for each of the indicator of our dataset, by date. Left column: around the Sanitary Pass implementation; right column: around the Vaccine Pass implementation. The top five odds ratios are labelled at each time point; the arrow next to the name indicates the direction of the effect. The gray rectangle corresponds to the 99% percentile of odds ratios in the permuted data; points falling in the rectangle are considered as non-significant.</p>
+</div>
+
+Our odds ratio calculations were based on a crude version of each indicator, which were dichotomized into values above or below the median of each indicator. To better visualize the effects (or lack thereof) of the sanitary and vaccine passes on vaccination rates over time, we computed age-adjusted vaccination rates over time, by decile of three of the most associated indicators, treated as factors (see Figure \@ref(fig:figOverTime)). While the Sanitary Pass led to an overall increase in vaccination rates, the Vaccine Pass did not affect the trend of change in vaccination rates. Heterogeneities in vaccination rates persisted after both types of pass, neatly ordered by decile of each indicator. 
+
+
+<div class="figure">
+<img src="ms_files/figure-html/figOverTime-1.png" alt="Age-adjusted vaccination rates among adults, over time, by decile of each indicator. "  />
+<p class="caption">(\#fig:figOverTime)Age-adjusted vaccination rates among adults, over time, by decile of each indicator. </p>
+</div>
+
+Finally, historically under-vaccinated areas in France stand out as being less vaccinated against Covid-19, in particular the South-East region.  
+
+FIGURE MAP
+
+
+# Discussion
 
