@@ -1,0 +1,52 @@
+---
+title: "PassSanitaire"
+author: "FD"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+load("../code/savevalues.RData")
+```
+
+The French domestic Pass Sanitaire did not solve vaccination inequities: a nationwide longitudinal study on `r round(totPopSize / 10^6)` million individuals
+
+
+# Abstract
+
+Context: The French sanitary pass led to an increase in vaccination rates in France, but spatial heterogeneities in vaccination rates are still striking [LG1]. To identify potential determinants of these heterogeneities and evaluate the the French sanitary pass' efficacy in reducing them, we used a data-driven approach on exhaustive nationwide data, gathering `r nIndicatorsAfterRemovingCorrMiss` socio-economic, political and geographic indicators.
+
+Methods: We considered the association between being a district above the median value of the first-dose vaccination rates and being above the median value of each indicator at four time points: week `r format(as.Date(date1), "%W")`, (just before the sanitary pass announcement), week `r format(as.Date(date2), "%W")` (when the sanitary pass came fully into force), week `r format(as.Date(date3), "%W")` (end of the summer) and week `r format(as.Date(date4), "%W")` (end of data collection). We then considered the change over time of vaccination rates according to the XX most associated indicators, by deciles. 
+
+Results: The XX indicators most associated with vaccination rates were XX, XX, XX. 
+
+Conclusion: Our analysis reveals that, both before and after the introduction of the French sanitary pass, factors with the largest impact are related to poverty XX, XXX, XXX. 
+
+# Introduction
+
+The rapid development of effective COVID-19 vaccines brought the hope of a rapid return to normalcy, but heterogeneous vaccination rates, both among countries because of inequitable distributions of doses [Usher21] and within countries [Caspi21, Murthy21], jeopardize epidemic control.
+ 
+Hesitancy and hostility toward vaccination have been comparatively high in France in recent decades. It is particularly the case since the 2009-2010 vaccination campaign against pandemic flu, whose contested management in France was a tipping point that led to higher vaccine hesitancy and hostility [Ward19; Guimier2021]. 
+The trend was confirmed with the COVID-19 pandemic [Spire21]: just before Covid-19 vaccines became available, intentions to get vaccinated were comparatively very low in France (44% of the respondents in [Wouters2021] in the Fall 2020; about 40% of respondent in [SantePubliqueFrance21] in December 2020). Acceptance of the COVID-19 vaccine however gradually grew during 2021 [SantePubliqueFrance22].
+<!-- Lazarus21 does not talk directly about France --> 
+ 
+Spatial heterogeneties in vaccination rates have already been documented in France for previous vaccines. Vaccination coverage for the Hepatitis B vaccine and for the Measles-Mumps-Rubella vaccine has been lower in the South of France, and especially in the South-East of the country [Guimier21]. Distance to the central political power in Paris, as well as a sense of belonging to a local community with a strong cultural identity, have been put forward as potential explanations for this geographic gradient in vaccination rates [Guimier21]. 
+
+Attitudes toward vaccination are also known to be influenced by social and territorial inequalities. Surveys conducted in 2020 in France showed that respondents with lower education [Schwarzinger21, Spire21], lower income levels or less trust in authorities [Spire21] were more likely to be hostile to COVID-19 vaccines. Whether differential intentions translated into effective differences in vaccination, as described in other countries [Caspi21, Murthy21], remained to be shown in France. (XX New Bajos Paper?)
+ 
+By mid-July 2021, XX% of the eligible population in France had received a first dose, and the France was facing an epidemic wave due to the Delta variant. To speed up vaccination, President Macron announced on 12 July 2021 the implementation of a domestic "sanitary pass" (le passe sanitaire), which came fully into force on 9 August 2021. The "sanitary pass" was required in most cultural venues, for both indoor and outdoor dining and in health structures. This announcement led to an unprecedented demand for vaccination, which was celebrated internationally [Ref NYT?]. Vaccination rates climbed from 54% of the whole population (XX change into eligible) by 12 July 2021 to 69% on 4 September 2021. Because it targeted pay-for social activities, however, the "sanitary pass" was feared to have a limited impact on vaccination inequities.
+
+This study aims to obtain further insights into the association between social inequities, vaccination and sanitary pass implementation in France using nationwide data.
+
+ 
+Methods
+ 
+The French state health insurance service (Assurance Maladie) provides public datasets of exhaustive weekly first-dose vaccination data at the district scale nationally and at the suburban scale for the Paris, Lyon, and Marseille metropolitan areas. Our data included 1552 districts in mainland France (63,601,670 individuals; median district size 22,705 inhabitants; interquartile range 6,282--39,128). We associated these data with 176 socioeconomic [JA2] and 5 geographic indicators at the same geographic scales from public datasets. We allocated those indicators into categories (Activity: 12 indicators; Employment: 41 indicators; Family: 27 indicators; Geography: 5 indicators; Housing: 35 indicators; Immigration: 1 indicator; Population: 26 indicators; Revenue: 15 indicators; School: 19 indicators)
+ 
+We considered the association between being a district in the lowest quartile (25th percentile) of the first-dose vaccination rate and being above the median value of each indicator. We computed odds ratios and their 95% confidence intervals at three time points: week 27 (just before the sanitary pass announcement), week 31 (when the sanitary pass came fully into force), and week 35 (end of data collection). For the two indicators achieving the highest odds ratios, we computed vaccination levels for each indicator quartile on the same dates. Analyses were done using R (v4.0.3). To enhance odds-ratio visualization, we computed Manhattan plots giving odds-ratios and their confidence intervals by socioeconomic indicators categories.
+For each week, the significance threshold is calculated by performing 1000 random permutations on the vaccination rate. Then we take the maximum OR calculated over every indicator for each permutation. Finally the threshold is fixed at the 950th value of the maximum OR sorted in ascending order. 
+ 
+ 
+
+
