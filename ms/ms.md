@@ -7,21 +7,16 @@ output:
     keep_md: true
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
 
-load("../code/savevalues.RData")
-load("../code/data_indicators.RData") 
-```
 
-The French domestic Pass Sanitaire did not solve vaccination inequities: a nationwide longitudinal study on `r round(totPopSize / 10^6)` million individuals
+The French domestic Pass Sanitaire did not solve vaccination inequities: a nationwide longitudinal study on 64 million individuals
 
 
 # Abstract
 
-Context: The French sanitary pass led to an increase in vaccination rates in France, but spatial heterogeneities in vaccination rates are still striking [LG1]. To identify potential determinants of these heterogeneities and evaluate the the French sanitary pass' efficacy in reducing them, we used a data-driven approach on exhaustive nationwide data, gathering `r nIndicatorsAfterRemovingCorrMiss` socio-economic, political and geographic indicators.
+Context: The French sanitary pass led to an increase in vaccination rates in France, but spatial heterogeneities in vaccination rates are still striking [LG1]. To identify potential determinants of these heterogeneities and evaluate the the French sanitary pass' efficacy in reducing them, we used a data-driven approach on exhaustive nationwide data, gathering 141 socio-economic, political and geographic indicators.
 
-Methods: We considered the association between being a district above the median value of the first-dose vaccination rates and being above the median value of each indicator at four time points: week `r format(as.Date(date1), "%W")`, (just before the sanitary pass announcement), week `r format(as.Date(date2), "%W")` (when the sanitary pass came fully into force), week `r format(as.Date(date3), "%W")` (end of the summer) and week `r format(as.Date(date4), "%W")` (end of data collection). We then considered the change over time of vaccination rates according to the XX most associated indicators, by deciles. 
+Methods: We considered the association between being a district above the median value of the first-dose vaccination rates and being above the median value of each indicator at four time points: week 27, (just before the sanitary pass announcement), week 31 (when the sanitary pass came fully into force), week 34 (end of the summer) and week 00 (end of data collection). We then considered the change over time of vaccination rates according to the XX most associated indicators, by deciles. 
 
 Results: The XX indicators most associated with vaccination rates were XX, XX, XX. 
 
@@ -50,38 +45,31 @@ This study aims to obtain further insights on the socio-economic, political and 
 ## Data 
 
 <!-- Vaccination -->
-The French state health insurance service (Assurance Maladie) provides public datasets of vaccination rates in France. These datasets are based on aggregated individual data on beneficiaries of the national health insurance service who received health care in the past year. These exhaustive datasets are updated weekly, and are provided at the district scale nationally (EPCI: *Établissement public de coopération intercommunale*, an administrative level gathering multiple towns or cities) and at the suburban scale for the Paris, Lyon, and Marseille metropolitan areas. For this study, we focused on Metropolitain France, because vaccination rates are much lower in oversea localities, and because determinants of vaccination rates are likely to differ in oversea localities compared to metropolitain ones. Our dataset included `r sum(nlocalities)` districts (`r nlocalities["EPCI"]` EPCI and `r nlocalities["PLM"]` districts at the suburban scale in Paris, Lyon, Marseille). 
+The French state health insurance service (Assurance Maladie) provides public datasets of vaccination rates in France. These datasets are based on aggregated individual data on beneficiaries of the national health insurance service who received health care in the past year. These exhaustive datasets are updated weekly, and are provided at the district scale nationally (EPCI: *Établissement public de coopération intercommunale*, an administrative level gathering multiple towns or cities) and at the suburban scale for the Paris, Lyon, and Marseille metropolitan areas. For this study, we focused on Metropolitain France, because vaccination rates are much lower in oversea localities, and because determinants of vaccination rates are likely to differ in oversea localities compared to metropolitain ones. Our dataset included 1555 districts (1228 EPCI and 327 districts at the suburban scale in Paris, Lyon, Marseille). 
 
 The vaccination dataset for mainland France encompasses about XX individuals (median district size XX, itq range XX). The vaccination data are available by age class: 00--19, 20--39, 40--54, 55--64, 65--74, 75 and over. Population sizes for each locality and each age class are also provided. These population sizes are updated monthly to account for individuals aging, potential residential moves, and deaths. 
 
 
 <!-- Other data -->
 
-```{r, echo = FALSE}
-insee.indicators.names <- names(typesDataAll)[!is.element(names(typesDataAll), c("Geography", "Elections"))]
 
-tb <- typesDataNoCorr[!is.element(names(typesDataNoCorr), c("Geography", "Elections"))]
-output.INSEE <- ""
-for(i in 1:length(tb)) output.INSEE <- paste0(output.INSEE, names(tb)[i], ": n = ", tb[i], "; ")
-output.INSEE <- substr(output.INSEE, 1, nchar(output.INSEE)-2)
-```
 
 We paired these vaccination data with three other datasets gathering socio-economic, political and geographic variables.
 
-Socio-economic data are provided by the French national statistics institute (INSEE), and are available at the same administrative levels as the vaccination data. The different predictors are classified into `r length(insee.indicators.names)` categories (`r insee.indicators.names`).  
+Socio-economic data are provided by the French national statistics institute (INSEE), and are available at the same administrative levels as the vaccination data. The different predictors are classified into 8 categories (Activity, Education, Employment, Family, Housing, Immigration, Income, Population).  
 Latitude, longitude and surface data were extracted from maps datasets [ref OpenMaps]. We calculated from them four additional geographic indicators: distance to Paris, relative position along a South-East--North-West gradient, relative position along a South-West--North-East gradient, and local population density.  
 Our political dataset consisted of the results of the two round of the 2017 Presidential election in France, which we aggregated to reconstitute the same administrative levels as the vaccination dataset. This political dataset contains the proportions of votes for each of the 11 candidates of the first round, 2 candidates of the second round (Macron and Le Pen), and proportion of abstention at each round. 
 
-These three datasets comprised `r nIndicatorsTot` indicators. We then removed those indicators with over `r round(thrMissingVals * 100)`% missing data, or with over `r thrCor` correlation with other indicators of the dataset, which left us with `r nIndicatorsAfterRemovingCorrMiss` indicators: `r sum(tb)` socio-economic indicators (`r output.INSEE`); `r typesDataNoCorr[is.element(names(typesDataNoCorr), c("Geography"))]` geographic indicators; `r typesDataNoCorr[is.element(names(typesDataNoCorr), c("Elections"))]` political indicators. 
+These three datasets comprised 312 indicators. We then removed those indicators with over 5% missing data, or with over 0.9 correlation with other indicators of the dataset, which left us with 141 indicators: 123 socio-economic indicators (Activity: n = 10; Education: n = 16; Employment: n = 25; Family: n = 20; Housing: n = 30; Immigration: n = 1; Income: n = 13; Population: n = 8); 6 geographic indicators; 12 political indicators. 
 
 ## Analysis
 
 Vaccination was accessible to all adults in France after 27 May 2021. It opened to teenagers (12-17 year olds) on 15 June 2021, and to children (5-11 year olds) on 22 December 2021. Because of this differential accessibility of vaccines, and because vaccine passport rules also differed for non-adults, we excluded the 00-19 age class from our analysis, and focused on vaccination rates among 20+ year-old individuals (hereafter "adults"). 
 
-For each indicator in our dataset, at each of the four chosen dates (weeks `r format(as.Date(c(date1, date2, date3, date4)), "%Y-%W")`), we considered the association between living in a district above the median of a that indicator and vaccination rates among adults. Odds ratios (OR) were computed from the output of a logistic regression. To be able to compare predictors irrespective of the direction of the effect, we considered the maximum of `OR, 1/OR` (hereafter $\overline{OR}$). 
-For each date, we determined a significance threshold by computing odds ratios on `r nrep` random permutations of a predictor, and identifying the value of the XX 99% percentile odd ratios ($\overline{OR}$) of these permuted data. 
+For each indicator in our dataset, at each of the four chosen dates (weeks 2021-27, 2021-31, 2021-34, 2022-00), we considered the association between living in a district above the median of a that indicator and vaccination rates among adults. Odds ratios (OR) were computed from the output of a logistic regression. To be able to compare predictors irrespective of the direction of the effect, we considered the maximum of `OR, 1/OR` (hereafter $\overline{OR}$). 
+For each date, we determined a significance threshold by computing odds ratios on 1000 random permutations of a predictor, and identifying the value of the XX 99% percentile odd ratios ($\overline{OR}$) of these permuted data. 
 
-For representative indicators with the strongest association to vaccination data, we estimated age-adjusted vaccination rates among adults over time, for each decile of each indicator (treated as a factor). These estimations were obtained from a logistic model taking age class into account, and adult vaccination rates were computed on a standardized age distribution matching that of metropolitain France. 
+For representative indicators with the strongest association to vaccination data, we estimated age-adjusted vaccination rates among adults over time, for each decile of each indicator. These estimations were obtained from a logistic model taking age class into account, and adult vaccination rates were computed on a standardized age distribution matching that of metropolitain France. 
 
 All analysis code is available at XXX. 
 
