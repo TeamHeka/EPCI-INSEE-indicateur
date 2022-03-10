@@ -1,15 +1,19 @@
 ---
 title: "PassSanitaire"
-author: "FD"
+author: ""
 output:
   bookdown::html_document2:
     self_contained: no
     keep_md: true
     number_sections: no
+  bookdown::word_document2: 
+    number_sections: no
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
+library("mapsf")
 
 load("../code/savevalues.RData")
 load("../code/data_indicators.RData") 
@@ -42,7 +46,8 @@ Attitudes toward vaccination are also known to be influenced by social and terri
 
 <!-- XX MOVE INTERNATIONAL COMPARISONS IN THE DISCUSSION Whether differential intentions translated into effective differences in vaccination, as described in other countries [Caspi21, Murthy21], remained to be shown in France. (XX New Bajos Paper?) -->
  
-By mid-July 2021, XX% of the eligible population in France had received a first dose, and the France was facing an epidemic wave due to the Delta variant. To speed up vaccination, President Macron announced on 12 July 2021 the implementation of a domestic "sanitary pass" (le passe sanitaire), which came fully into force on 9 August 2021. The "sanitary pass" was required in most cultural venues, for both indoor and outdoor dining and in health structures. This announcement led to an unprecedented demand for vaccination, which was celebrated internationally [Ref NYT?]. Vaccination rates climbed from 54% of the whole population (XX change into eligible) by 12 July 2021 to 69% on 4 September 2021. Because it targeted pay-for social activities, however, the "sanitary pass" was feared to have a limited impact on vaccination inequities.
+By mid-July 2021, XX% of the eligible population in France had received a first dose, and the France was facing an epidemic wave due to the Delta variant. To speed up vaccination, President Macron announced on 12 July 2021 the implementation of a domestic "sanitary pass" (le passe sanitaire), which came fully into force on 9 August 2021. Presenting as a QR code, a long-term sanitary pass was obtained after full vaccination (two doses, or one in the case of a document Covid-19 infection previously), and a short-term version could be obtained with a negative Covid-19 test.
+The "sanitary pass" was required in most cultural venues, for both indoor and outdoor dining and in health structures. This announcement led to an unprecedented demand for vaccination, which was celebrated internationally [Ref NYT?]. Vaccination rates climbed from 54% of the whole population (XX change into eligible) by 12 July 2021 to 69% on 4 September 2021. Because it targeted pay-for social activities, however, the "sanitary pass" was feared to have a limited impact on vaccination inequities. By mid-December 2021, at the height of the winter Delta wave, and while the Omicron wave was looming, the French Prime Minister announced that the Sanitary Pass would become a Vaccine Pass, i.e. that a negative Covid-19 test would not provide a temporary QR code any longer for adults. The Vaccine Pass came into force on 24 January 2022. 
 
 This study aims to obtain further insights on the socio-economic, political and geographic factor associated with vaccination rates, and to evaluate the effect of the French domestic sanitary pass, by using nation-wide, exhaustive datasets.
  
@@ -69,7 +74,7 @@ output.INSEE <- substr(output.INSEE, 1, nchar(output.INSEE)-2)
 
 We paired these vaccination data with three other datasets gathering socio-economic, political and geographic variables.
 
-Socio-economic data are provided by the French national statistics institute (INSEE), and are available at the same administrative levels as the vaccination data. The different predictors are classified into `r length(insee.indicators.names)` categories (`r insee.indicators.names`).  
+Socio-economic data are provided by the French national statistics institute (INSEE), and are available at the same administrative levels as the vaccination data. We selected the most recent dataset available (year 2018). The different predictors are classified into `r length(insee.indicators.names)` categories (`r insee.indicators.names`).  
 Latitude, longitude and surface data were extracted from maps datasets [ref OpenMaps]. We calculated from them four additional geographic indicators: distance to Paris, relative position along a South-East--North-West gradient, relative position along a South-West--North-East gradient, and local population density.  
 Our political dataset consisted of the results of the two round of the 2017 Presidential election in France, which we aggregated to reconstitute the same administrative levels as the vaccination dataset. This political dataset contains the proportions of votes for each of the 11 candidates of the first round, 2 candidates of the second round (Macron and Le Pen), and proportion of abstention at each round. 
 
@@ -105,11 +110,13 @@ All analysis code is available at XXX; analyses were done in `r R.Version()$vers
 
 We investigated the associations between each of the `r nIndicatorsAfterRemovingCorrMiss` indicators and first-dose vaccination rates. Two indicators were among the top five most associated one at all time points (see Figure \@ref(fig:figManhattan)): the share of local income coming from unemployment benefits (`Unemployment_Benef`) and vote for Mr Asselineau (`Asselineau`). The three other most associated indicators did not change in the later dates that we considered, and were the proportion of immigrants in the district (`Immigrant`), the district's relative position along a North-West--South-East gradient (`NO-SE`) and the proportion of overcrowded household (`Overcrowding_rate`). 
 
+The share of local income coming from unemployment benefits (`Unemployment_Benef`) and the proportion of overcrowded household (`Overcrowding_rate`) are two indicators linked to poverty. In 2017, less than $1\%$ of cast votes were for Mr Asselineau (`Asselineau`) in France; this candidate for instance proposed that France exits the European Union, leave the Euro zone and reinstall the Franc currency, and was a proponent of hydroxychloroquin and ivermectin during the Covid-19 pandemic, and publicly expressed doubts about the available Covid-19 vaccines. 
+
 GIVE NAMES OF NOT ASSOCIATED INDICATORS?
 
 GIVE VALUES IN A TABLE?
 
-```{r figManhattan, echo=FALSE, fig.height=9, fig.width=9, fig.cap="Manhattan plots of the Odds ratios for each of the indicator of our dataset, by date. Left column: around the Sanitary Pass implementation; right column: around the Vaccine Pass implementation. The top five odds ratios are labelled at each time point; the arrow next to the name indicates the direction of the effect. The gray rectangle corresponds to the 99% percentile of odds ratios in the permuted data; points falling in the rectangle are considered as non-significant."}
+```{r figManhattan, echo=FALSE, fig.height=9, fig.width=9, fig.cap="Manhattan plots of the Odds ratios for each of the indicator of our dataset, by date. Left column: around the Sanitary Pass implementation; right column: around the Vaccine Pass implementation. The top odds ratios are labelled at each time point; the arrow next to the name indicates the direction of the effect. The gray rectangle corresponds to the 99% percentile of odds ratios in the permuted data; points falling in the rectangle are considered as non-significant."}
 load("../data/predictors.RData")
 load("../code/outLR.RData")
 source("../code/2_plot-manhattan.R")
@@ -121,7 +128,7 @@ plotManhattan(outLR, ntop = 5)
 Our odds ratio calculations were based on a crude version of each indicator, which were dichotomized into values above or below the median of each indicator. To better visualize the effects (or lack thereof) of the sanitary and vaccine passes on vaccination rates over time, we computed age-adjusted vaccination rates over time, by decile of three of the most associated indicators, treated as factors (see Figure \@ref(fig:figOverTime)). While the Sanitary Pass led to an overall increase in vaccination rates, the Vaccine Pass did not affect the trend of change in vaccination rates. Heterogeneities in vaccination rates persisted after both types of pass, neatly ordered by decile of each indicator. 
 
 
-```{r figOverTime, fig.height=10, fig.width=4, fig.cap="Age-adjusted vaccination rates among adults, over time, by decile of each indicator. ", echo = FALSE}
+```{r figOverTime, fig.height=8, fig.width=4, fig.cap="Age-adjusted vaccination rates among adults, over time, by decile of each indicator. ", echo = FALSE}
 load("../code/outTime.RData")
 source("../code/2_plot-overTime.R")
 layout(matrix(1:3, ncol = 1))
@@ -132,6 +139,57 @@ Finally, historically under-vaccinated areas in France stand out as being less v
 
 FIGURE MAP
 
+```{r figMap, fig.height=5, fig.width=4, fig.cap="Adult vaccination rates by district", echo = FALSE}
+source("../code/2_plot-map.R")
+source("../code/1_functions-adjustAges.R")
+load("../data/mapFiles_withDepReg.RData")
+load("../data/chefslieux.RData")
+# Choose date
+thedate <- datesAnalysis[6]
+# Vaccination data by age at that date
+tmpVacc <- vacc[vacc$date == thedate & vacc$classe_age != "TOUT_AGE", ]
+#tmpVacc2 <- vacc[vacc$date == thedate & vacc$classe_age == "TOUT_AGE", ]
+#tmpVacc2$taux_cumu <- tmpVacc2$taux_cumu_1_inj
+
+# Compute adult vaccination rate
+adultVaccinationRate <- adultVacc(tmpVacc)
+
+
+#plotMapVacc(adultVaccinationRate, thetitle = paste0("Adult vaccination rates on ", thedate), palName = "Hiroshige", byp = 5)
+
+# Compute mean vaccination rate
+meanVacc <- sum(adultVaccinationRate$n_cumu) / sum(adultVaccinationRate$population_carto)
+# Compute difference to max to center the color scale
+maxDiff <- max(c(max(adultVaccinationRate$taux_cumu) - meanVacc, meanVacc - min(adultVaccinationRate$taux_cumu)))
+
+plotMapVacc(adultVaccinationRate, thetitle = paste0("Adult vaccination rates on ", thedate), palName = "Hiroshige", byp = 2, zmin = floor(100*(meanVacc - maxDiff)), zmax = ceiling(100*(meanVacc + maxDiff)))
+
+#plotMapVacc(tmpVacc2, thetitle = paste0("Adult vaccination rates on ", date6))
+
+```
+
 
 # Discussion
 
+Our results, based on exhaustive national datasets, indicate that the French sanitary pass, and the later vaccine pass, did not solve Covid-19 vaccination heterogeneities, but instead crystallized them. Indicators most associated with vaccination rates were associated to poverty, immigration, and anti-establishment vote (or abstention). For instance, the odds for an adult to still be unvaccinated by the end of February 2021 are about $1.4$ <!-- extract value --> times higher when living in the districts with higher than median value share of income coming from unemployment benefits, and when living in the districts with lower than median value. 
+
+The indicators associated to vaccination rates can be interpreted in the light of the dimensions of vaccine hesitancy [Ward2022].  
+A first reason for vaccine hesitancy is complacency: not fully perceiving the benefit of vaccination or the risks of severe disease. While in this case a sanitary or vaccine pass may convince complacent individuals to get vaccinated, it is less efficient if the associated constrain is low. As the French domestic pass was associated to pay-for activities (restaurants, tourism), its persuading effect could be limited among poorer populations, which may explain the association of lower vaccination rate with poverty in the data that we analyzed.  
+A second reason for vaccine hesitancy is confidence, i.e. trust in the vaccine, in the health care system, and more generally in the government [Ward2022]. A survey conducted in July 2021 in France confirmed that trust in the government and trust in scientists were associated to higher odds to be vaccinated [Bajos2022]. Votes for Mr Asselineau can be interpreted as mistrust in the government (or more generally, against the establishment), and the association with lower vaccination rates can be interpreted as a lack of confidence. Among political indicators, the second strongest association is with abstention rates (higher abstention rates being associated to lower vaccination rates), again signaling higher distrust for institutions [Ward2020]. Likewise, the lower vaccinations rates in the South-East of France can be interpreted as mistrust of the central government in Paris.   
+Finally, a third reason for vaccine hesitancy is convenience, that is availability and accessibility of the vaccines [Ward2022]. During the first half of 2021, vaccination rate in France was mostly constrained by dose availability. Vaccination slots were to be booked online, and there was no general system for sending individual invitations to get vaccinated. These accessibility issues may explain the association we find between lower vaccination rates and living in a district with a high proportion of immigrants, which may for instance reveal language barriers. 
+BAJOS AND RACIALISED INDIV?
+
+Although presented in our study independently, the different indicators are linked, and their combinations affect vaccination rates. For instance, the effect of mistrust in the government on vaccination refusal was shown to be even stronger in poorer individuals than in richer points in a survey conducted in July 2021 in France [Bajos2022]. 
+
+Relative position of the district of residency along a North-West--South-East gradient is also associated with vaccination probability, the South-East being less vaccinated. This geographic feature, already documented for other kinds of vaccination [Guimier2021], have been shown to be the consequence of multiple determinants with a common consequence: a local climate of mistrust for the central Parisian power. Politically, anti-system votes (from the right as well as from the left) are traditionally concentrated in the South-East of France. Medically, General Practitioners (GPs) based in the South-East, and to a lesser extent those in the South-West, have been shown to tend to have a more negative opinion of vaccination than their colleagues practicing in the northern part of France [Gautier et al. 2013]. This greater skepticism influences GP practices and attitudes, resulting in a lesser degree of compliance with vaccination schedules than GPs in the northern half of France [Collange et al., 2015]. Physical distance to the central government and institutions, based in Paris, coupled with a sense of belonging to a local community with a strong cultural identity, as is the case for example in the Marseille metropolis or in the Cévennes, play a role in indifference or mistrust towards institutions perceived as distant authorities [Guimier, 2021]. Finally, in and around the Marseille metropolis, the image of a rebellious territory was reinforced since the first months of the epidemic in France through the hypermediatized Pr Didier Raoult. Based in Marseille, he was a promoter of a controversial treatment against Covid-19 based on hydroxychloroquine and azithromycin, and later held ambiguous positions regarding Covid-19 vaccination. He has become a local icon, thanks to his anti-system positions, and against the hostility of most of the medical world towards his work. All in all, around the city of Marseille, and more broadly in South-Eastern France, the climate of suspicion against Parisian institutions, which had long been rooted in the area, hardened during the Covid-19 crisis, and was associated with distrust of Covid-19 vaccines.   
+
+<!-- Limitations -->
+In this study, we used a data-driven approach, i.e. we did not focus on indicators that we *a priori* thought to be associated with vaccination rate. While our vaccination data are at the individual level, the socio-economic, political and geographic indicators are at the district level, and must therefore be interpreted as such (e.g., we cannot not show that receiving unemployment benefits is associated with lower vaccination probability, but we find an association with lower vaccination probability and the fact of living in a district where a large share of income comes from unemployment benefits). Our data cover Metropolitain France, XX million individuals, and are real-world data: we consider realized vaccination rates and not intentions to be vaccinated. In addition, since our data are based on record of the national health insurance service, vaccination rates do not come from self-reported, and there is in theory no reporting bias. 
+
+Although we interpreted our results through the lens of a classification of reasons for vaccine hesitancy, our data only concern realized vaccination rates, and not the associated intentions. According to a survey conducted in the Fall 2021, the introduction of the sanitary pass led to an increase in the share of individuals reporting being "angry they had to be vaccinated" [Ward2022]. Conversely, we cannot tell why individuals who are still not vaccinated in February 2022 are so -- e.g., whether it is hesitancy, refusal, or accessibility issues. Given the implementation of the vaccination campaign in France, namely the absence of individual invitations to get vaccinated, the reliance on private online booking systems, it is still possible that, in spite of some local outreach efforts, vaccine accessibility remains an issue, and may explain at least part of the association of lower vaccination rates with poverty. 
+
+By emphasizing a differentiated use of COVID-19 vaccination according to a socio-economic gradient, our study confirms the strong impact of social inequalities on COVID-19. The most deprived areas have already been shown to have been disproportionately infected and hospitalized during the pandemic [Jannot21, Bajos21]. We show that poorer districts are also the least vaccinated and, hence, the most still at risk, despite the widely celebrated domestic sanitary pass. There is an urgent need to define new vaccination policies that truly address social inequities. 
++ DEPOLITICIZE (Bajos/Ward)
+
+
+AUTRES POINTS DE DISCUSSION: distrust with promises of return to normal life (Summer 2021); changing conditions (inclusion of booster dose)
