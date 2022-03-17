@@ -112,6 +112,8 @@ plotMapVacc <- function(tabVacc, byp = 2.5, zmin = NA, zmax = NA, thetitle = "Ad
     # byp: interval for discretization
   # Global variables: datasets, map shapes
   
+  layout(matrix(c(1, 1, 1, 2, 3, 4), byrow = TRUE, ncol = 3), heights = c(3, 1))
+  
   tabVacc$pourcentVacc <- tabVacc$taux_cumu * 100
   
   # Add to geographic data
@@ -128,7 +130,8 @@ plotMapVacc <- function(tabVacc, byp = 2.5, zmin = NA, zmax = NA, thetitle = "Ad
   }
   
   # Map Parameters
-  eBB <- c(.5, .2, 0, 0)
+#  eBB <- c(.5, .2, 0, 0)
+  eBB <- c(0, 0.2, 0, 0)
   h2 <- c(0.01, 0.275) # (ymin, ymax) of the metropoles
   
   # Color palette
@@ -180,7 +183,7 @@ plotMapVacc <- function(tabVacc, byp = 2.5, zmin = NA, zmax = NA, thetitle = "Ad
   marMet <- c(0, 0, .8, 0) # margin
   
   # PARIS
-  mf_inset_on(fig = c(0, 0.33, h2))
+#  mf_inset_on(fig = c(0, 0.33, h2))
   mf_theme(mar = marMet)
   paris <- tca[is.element(substr(tca$insee, 1,2), c("75", "91", "92", "93", "94", "95")), ]
   paris <- merge(paris, tabVacc, by.x = "insee", by.y = "codgeo", all.x = TRUE)
@@ -190,10 +193,10 @@ plotMapVacc <- function(tabVacc, byp = 2.5, zmin = NA, zmax = NA, thetitle = "Ad
          leg_pos = "n")
   mf_title(txt = "Métropole du Grand Paris", pos = "center", tab = FALSE, bg = NA, 
            fg = "black", cex = .65, line = .8)
-  mf_inset_off()
+#  mf_inset_off()
   
   # LYON
-  mf_inset_on(fig = c(0.33, 0.66, h2))
+#  mf_inset_on(fig = c(0.33, 0.66, h2))
   mf_theme(mar = marMet)
   
   lyon <- tca[is.element(substr(tca$insee, 1,2), c("69")),]
@@ -203,9 +206,9 @@ plotMapVacc <- function(tabVacc, byp = 2.5, zmin = NA, zmax = NA, thetitle = "Ad
          leg_pos = "n")
   mf_title(txt = "Métropole de Lyon", pos = "center", tab = FALSE, bg = NA, 
            fg = "black", cex = .7, line = .8)
-  mf_inset_off()
+#  mf_inset_off()
   
-  mf_inset_on(fig = c(.66, 1, h2))
+#  mf_inset_on(fig = c(.66, 1, h2))
   mf_theme(mar = marMet)
   
   # MARSEILLE
@@ -216,5 +219,5 @@ plotMapVacc <- function(tabVacc, byp = 2.5, zmin = NA, zmax = NA, thetitle = "Ad
          leg_pos = "n")
   mf_title(txt = "Métropole d'Aix-Marseille-Provence", pos = "center", tab = FALSE, bg = NA, 
            fg = "black", cex = .7, line = .8)
-  mf_inset_off()
+#  mf_inset_off()
 }

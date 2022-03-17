@@ -12,7 +12,7 @@ sortData <- FALSE
 
 # Threshold for correlation in the variables
 # Variables with absolute correlation above this threshold are removed from the analysis
-thrCor <- 0.95
+thrCor <- 0.9
 
 # Threshold for missing values
 # We will not consider variables with more than this threshold of missing values
@@ -290,4 +290,21 @@ if(sortData){
 
 # Export the result
 save(dat.all, dat.nocorr, dicPred, dic.fullpred, colClass, file = "../data/predictors.RData")
+
+typesDataAll <- table(dic.fullpred[dicPred[names(dat.all[, -1])]])
+typesDataNoCorr <- table(dic.fullpred[dicPred[names(dat.nocorr[, -1])]])
+
+sum(typesDataNoCorr[!is.element(names(typesDataNoCorr), c("Geography", "Elections"))])
+
+tb <- typesDataNoCorr[!is.element(names(typesDataNoCorr), c("Geography", "Elections"))]
+for(i in 1:length(tb)) cat(paste0(names(tb)[i], ": n = ", tb[i], "; "))
+
+
+names(dat.nocorr[, -1])[dic.fullpred[dicPred[names(dat.nocorr[, -1])]] == "Geography"]
+names(dat.all[, -1])[dic.fullpred[dicPred[names(dat.all[, -1])]] == "Geography"]
+
+names(dat.nocorr[, -1])[dic.fullpred[dicPred[names(dat.nocorr[, -1])]] == "Elections"]
+names(dat.all[, -1])[dic.fullpred[dicPred[names(dat.all[, -1])]] == "Elections"]
+
+save(thrCor, thrMissingVals, typesDataAll, typesDataNoCorr, file = "data_indicators.RData")
 

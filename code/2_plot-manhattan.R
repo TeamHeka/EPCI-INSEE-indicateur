@@ -7,7 +7,7 @@ pal <- pal[c(1, 6, 2, 7, 3, 8, 4, 9, 5, 10)]
 
 pal <- c("#a6cee3", "#e31a1c", "#1f78b4", "#fdbf6f", "#b2df8a", "#ff7f00", "#33a02c", "#cab2d6", "#fb9a99", "#6a3d9a")
 names(pal) <- unique(dicPred[names(dat.nocorr[-1])])
-plot(1:10, col = pal, cex = 2, pch = 15)
+# plot(1:10, col = pal, cex = 2, pch = 15)
 
 colPerm <- gray(0, 0.4)
 
