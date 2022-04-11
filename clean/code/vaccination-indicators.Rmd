@@ -1,0 +1,510 @@
+---
+title: "Vaccination"
+author: "FD"
+output: html_notebook:
+  keep_md: true
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Initializations
+
+```{r, eval = FALSE, include = FALSE}
+rm(list = ls())
+
+for(i in dev.list()) dev.off()
+```
+
+```{r}
+runComputations <- FALSE
+```
+
+
+# Load and clean data
+
+-  Indicators 
+
+```{r loadPredictors}
+# The data have been dealt with in "0_INSEE_predictors.R" and saved as RData
+load("../data/predictors.RData")
+```
+
+-  Vaccination
+
+```{r loadVaccinationData}
+# Source vaccination data
+source("1_load-clean_vaccination.R")
+```
+
+-  Dates
+
+```{r}
+# Get all dates in the vaccination dataset
+vaccDates <- sort(unique(vacc$date))
+range(vaccDates)
+
+# Define specific dates
+date1 <- "2021-07-11" # Just before pass sanitaire announcement
+date2 <- "2021-08-08" # Just before pass sanitaire comes into force
+date3 <- "2021-09-05" # One month after pass sanitaire
+date4 <- "2021-12-12" # Before pass vaccinal announcement
+date5 <- "2022-01-23" # Just before pass vaccinal came into force
+date6 <- "2022-02-20" # One month after pass sanitaires
+
+datesAnalysis <- c(date1, date2, date3, date4, date5, date6)
+
+
+date.SP.announcement <- "2021-07-12"
+date.SP.implementation <- "2021-08-09"
+date.VP.announcement <- "2021-12-16"
+date.VP.implementation <- "2022-01-24"
+
+```
+
+# Define analysis functions
+
+```{r results = 'hide', fig.show='hide'}
+# Functions to discretize the data
+source("1_functions-quantiles.R")
+# `discretizeQ`
+
+# Functions to recompute vaccination rates
+source("1_functions-adjustAges.R")
+
+# Other
+invlogit <- function(x){exp(x)/(1 + exp(x))}
+
+uniqueNoNA <- function(x){
+  out <- unique(x)
+  out <- out[!is.na(out)]
+  out
+}
+
+# Logistic model
+source("1_functions-logisticRegression.R")
+
+# Odds ratios
+source("1_functions-oddsRatios.R")
+
+# Functions for plotting
+source("2_plot-manhattan.R")
+source("2_plot-overTime.R")
+```
+
+# Computation
+
+## Across median comparison 
+
+```{r computationAcrossMedianComparisons}
+if(runComputations){
+  # Define the combinations of parameters to be tested
+  parmsLR <- expand.grid(varPred = names(dat.nocorr)[-1], 
+                         thedate = datesAnalysis, 
+                         predTransform = "discretize_factor", 
+                         vaccAge = "adults", 
+                         by.prbs = 0.5, 
+                         permutation = FALSE,
+                         stringsAsFactors = FALSE)
+  # Permutation 
+  # Number of repetitions
+  nrep <- 1000
+  # Base combination of parameters
+  tmpparmsPerm <- expand.grid(varPred = "Abstention", 
+                              thedate = datesAnalysis, 
+                              predTransform = "discretize_factor", 
+                              vaccAge = "adults", 
+                              by.prbs = 0.5, 
+                              permutation = TRUE,
+                              stringsAsFactors = FALSE)
+  # Add repeated parameters
+  for(i in 1:nrep){
+    parmsLR <- rbind(parmsLR, tmpparmsPerm)
+  }
+  rm(tmpparmsPerm)
+  
+  # Initialize output
+  out <- as.data.frame(matrix(NA, ncol = 8, nrow = nrow(parmsLR)))
+  cat(nrow(parmsLR), " combinations to be tested\n")
+  # Compute OR for each combination of parameters
+  for(i in 1:nrow(parmsLR)){
+    if(i %% 10 == 0) cat(i, "") # Print counter
+    # Compute the logistic regression on this combination of parameters
+    mdl <- do.call(getLogReg, parmsLR[i, ])
+    # Extract the odds ratios
+    out[i, ] <- extractOR(mdl)
+  }
+  names(out) <- names(extractOR(mdl))
+  
+  # Add the parameters
+  outLR <- cbind(parmsLR, out)
+  
+  # Add type of predictor information
+  outLR$typePred <- dicPred[outLR$varPred]
+  # Full names
+  outLR$typePredFull <- dic.fullpred[outLR$typePred]
+  
+  save(outLR, file = "outLR.RData")
+  
+}
+```
+
+
+```{r manhattan_median}
+load("outLR.RData")
+
+# PLOT
+plotManhattan(outLR, ntop = 5)
+```
+
+```{r eval = FALSE}
+# Elections
+tmpPRE <- outLR[is.element(outLR$typePred, "PRE") & outLR$permutation == FALSE, c("varPred", "thedate", "OR", "OR.abs")]
+tmpPRE[order(tmpPRE$OR.abs, decreasing = TRUE), ]
+```
+
+
+## By deciles, quantitatively, adjusting ages
+
+```{r computationsByDeciles}
+if(runComputations){
+  # Define the combinations of parameters to be tested
+  parmsDec <- expand.grid(varPred = names(dat.nocorr)[-1], 
+                          thedate = datesAnalysis, 
+                          predTransform = "discretize", 
+                          vaccAge = "by_age", 
+                          by.prbs = 0.1, 
+                          permutation = FALSE,
+                          stringsAsFactors = FALSE)
+  
+  # Permutation
+  # Base combination of parameters
+  tmpparmsPerm <- expand.grid(varPred = "Abstention", 
+                              thedate = datesAnalysis, 
+                              predTransform = "discretize", 
+                              vaccAge = "by_age", 
+                              by.prbs = 0.1, 
+                              permutation = TRUE,
+                              stringsAsFactors = FALSE)
+  # Add repeated parameters
+  for(i in 1:nrep){
+    parmsDec <- rbind(parmsDec, tmpparmsPerm)
+  }
+  rm(tmpparmsPerm)
+  
+  
+  newd <- expand.grid(age.f = as.factor(ages), pred.std = 1:10)
+  
+  
+  cat(nrow(parmsDec), " combinations to be tested\n")
+  
+  
+  out <- as.data.frame(matrix(NA, ncol = 4, nrow = nrow(parmsDec)))
+  
+  # Compute OR for each combination of parameters
+  for(i in 1:nrow(parmsDec)){
+    if(i %% 10 == 0) cat(i, "") # Print counter
+    # Compute the logistic regression on this combination of parameters
+    mdl <- do.call(getLogReg, parmsDec[i, ])
+    # Predicted values
+    predsC <- adjustedPredict(mdl, newd, includeChildren = TRUE)
+    predsA <- adjustedPredict(mdl, newd, includeChildren = FALSE)
+    
+    # Compute odds ratios
+    ORC <- getORfromPredict(c(predsC[predsC$pred.std == 10, "adjustedRate"], predsC[predsC$pred.std == 1, "adjustedRate"]))
+    ORA <- getORfromPredict(c(predsA[predsA$pred.std == 10, "adjustedRate"], predsA[predsA$pred.std == 1, "adjustedRate"]))
+    
+    out[i, ] <- c(ORC, ORA, max(ORC, 1/ORC), max(ORA, 1/ORA))
+  }
+  names(out) <- c("OR.withChildren", "OR.adults", "OR.abs.withChildren", "OR.abs.adults")
+  dim(out)
+  # Add the parameters
+  outDec <- cbind(parmsDec, out)
+  # Add type of predictor information
+  outDec$typePred <- dicPred[outDec$varPred]
+  # Full names
+  outDec$typePredFull <- dic.fullpred[outDec$typePred]
+  
+  save(outDec, file = "outDec.RData")
+  
+}
+```
+
+
+```{r manhattan_decilesQ_withChildren}
+load("outDec.RData")
+
+suffix <- ".withChildren"
+
+xx <- outDec
+xx$OR <- outDec[, paste0("OR", suffix)]
+xx$OR.abs <- outDec[, paste0("OR.abs", suffix)]
+xx$OR.abs.CI.max <- outDec[, paste0("OR.abs", suffix)]
+
+plotManhattan(xx, ntop = 5)
+```
+
+
+```{r manhattan_decilesQ_adultsOnly}
+suffix <- ".adults"
+
+xx <- outDec
+xx$OR <- outDec[, paste0("OR", suffix)]
+xx$OR.abs <- outDec[, paste0("OR.abs", suffix)]
+xx$OR.abs.CI.max <- outDec[, paste0("OR.abs", suffix)]
+
+plotManhattan(xx, ntop = 5)
+
+```
+
+## Over time
+
+```{r computationsOverTime}
+if(runComputations){
+  dates <- sort(unique(vacc$date))
+  minDate <- "2021-05-01"
+  dates <- dates[dates >= minDate]
+  
+  # Define the combinations of parameters to be tested
+  parmsTime <- expand.grid(varPred = c("Unemployment_Benef", "Immigrant", "Asselineau"), 
+                           thedate = dates, 
+                           predTransform = "discretize_factor", 
+                           vaccAge = "by_age", 
+                           by.prbs = 0.1, 
+                           permutation = FALSE,
+                           stringsAsFactors = FALSE)
+  
+  dim(parmsTime)
+  
+  newd <- expand.grid(age.f = as.factor(ages), pred.std = as.factor(1:10))
+  
+  
+  # Initialize output
+  outC <- outA <- as.data.frame(matrix(NA, ncol = 10, nrow = nrow(parmsTime)))
+  
+  # Compute OR for each combination of parameters
+  for(i in 1:nrow(parmsTime)){
+    if(i %% 10 == 0) cat(i, "") # Print counter
+    # Compute the logistic regression on this combination of parameters
+    mdl <- do.call(getLogReg, parmsTime[i, ])
+    # Predicted values
+    predsC <- adjustedPredict(mdl, newd, includeChildren = TRUE)
+    predsA <- adjustedPredict(mdl, newd, includeChildren = FALSE)
+    
+    # Save
+    outC[i, ] <- predsC$adjustedRate
+    outA[i, ] <- predsA$adjustedRate
+    
+  }
+  
+  outC <- cbind(parmsTime, outC)
+  outA <- cbind(parmsTime, outA)
+  
+  save(outC, outA, dates, file = "outTime.RData")
+
+}
+```
+
+
+```{r overtime_withChildren}
+load("outTime.RData")
+
+plotPropTime(outC)
+
+```
+
+```{r overtime_adultsOnly}
+plotPropTime(outA)
+
+```
+
+# Geographic
+
+```{r}
+library(mapsf)
+# Geographic information for maps
+load("../data/mapFiles_withDepReg.RData")
+load("../data/chefslieux.RData")
+```
+
+## Indicators
+
+```{r}
+#varPred <- "X1564_OtherInactive_amg_NW"
+
+source("2_plot-map.R")
+plotMapVar("Unemployment_Benef", byp = 0.1)
+
+```
+
+
+```{r}
+plotMapVar("Unemployment_Benef", byp = 0.5)
+plotMapVar("Unemployment_Benef", byp = 0.1)
+
+#vv <- dat.all[, "Unemployment_Benef"]
+#plot(discretizeQ(vv, seq(0, 1, 0.1)), 
+#     discretizeQ(vv, seq(0, 1, 0.5)))
+
+plotMapVar("Asselineau", byp = 0.1)
+plotMapVar("Abstention", byp = 0.1)
+plotMapVar("Immigrant", byp = 0.1)
+
+plotMapVar("X1564_OtherInactive_amg_NW", byp = 0.1)
+```
+
+
+## Vaccination
+
+```{r}
+# Choose date
+thedate <- date6
+# Vaccination data by age at that date
+tmpVacc <- vacc[vacc$date == thedate & vacc$classe_age != "TOUT_AGE", ]
+#tmpVacc2 <- vacc[vacc$date == thedate & vacc$classe_age == "TOUT_AGE", ]
+#tmpVacc2$taux_cumu <- tmpVacc2$taux_cumu_1_inj
+
+# Compute adult vaccination rate
+adultVaccinationRate <- adultVacc(tmpVacc)
+
+
+#plotMapVacc(adultVaccinationRate, thetitle = paste0("Adult vaccination rates on ", thedate), palName = "Hiroshige", byp = 5)
+
+# Compute mean vaccination rate
+meanVacc <- sum(adultVaccinationRate$n_cumu) / sum(adultVaccinationRate$population_carto)
+# Compute difference to max to center the color scale
+maxDiff <- max(c(max(adultVaccinationRate$taux_cumu) - meanVacc, meanVacc - min(adultVaccinationRate$taux_cumu)))
+
+plotMapVacc(adultVaccinationRate, thetitle = paste0("Adult vaccination rates on ", thedate), palName = "Hiroshige", byp = 2, zmin = floor(100*(meanVacc - maxDiff)), zmax = ceiling(100*(meanVacc + maxDiff)))
+
+#plotMapVacc(tmpVacc2, thetitle = paste0("Adult vaccination rates on ", date6))
+
+
+```
+
+
+# Compute values for the paper
+
+```{r}
+head(vacc)
+## Population size
+# Note: DROMs have already been excluded when loading the `vacc` dataset
+totPopSize <- sum(vacc[vacc$date == date2 & vacc$classe_age == "TOUT_AGE", "population_carto"])
+totPopSize.adults <- sum(vacc[vacc$date == date2 & vacc$classe_age != "TOUT_AGE" & vacc$classe_age != "00-19", "population_carto"])
+
+## Indicators
+nIndicatorsTot <- ncol(dat.all[, ])
+nIndicatorsAfterRemovingCorrMiss <- ncol(dat.nocorr[, -1])
+
+tmp <- vacc[vacc$date == date1 & vacc$classe_age == "TOUT_AGE", ]
+nlocalities <- table(nchar(tmp$codgeo))
+names(nlocalities) <- c("PLM", "EPCI")
+
+
+
+```
+
+```{r}
+# Population size
+computeTotPop <- function(thedate){
+  tmp <- vacc[vacc$date == thedate & vacc$classe_age == "TOUT_AGE", ]
+  # Make sure to have the localities we want
+  sub <- merge(tmp, data.frame(codgeo = dat.all$codgeo), by = "codgeo")
+  c(sum(sub$population_carto, na.rm = TRUE), sum(tmp$population_carto, na.rm = TRUE))
+}
+
+rm(thedate)
+dts <- sort(unique(vacc$date))
+pops <- as.data.frame(t(vapply(dts, computeTotPop, FUN.VALUE = c(1, 2))))
+names(pops) <- c("totPop.noNALoc", "totPop")
+pops
+data.frame(date = dts, population = pops)
+
+
+tmp <- vacc[vacc$codgeo == "75115" & vacc$classe_age == "TOUT_AGE", c("date", "population_carto")]
+tmp
+
+tmp <- vacc[vacc$codgeo == "75115" & vacc$classe_age == "20-39", c("date", "population_carto")]
+tmp
+
+
+# Problem: total population size is constant, seems like population size is not updated in the dataset? 
+```
+
+```{r}
+
+# Global vaccination rate
+computeGlobalVacc <- function(thedate, adults = TRUE){
+  if(adults){
+      tmp <- vacc[vacc$date == thedate & 
+                    vacc$classe_age != "TOUT_AGE" & 
+                    vacc$classe_age != "00-19", ]
+  }else{
+      tmp <- vacc[vacc$date == thedate & vacc$classe_age == "TOUT_AGE", ]
+  }
+  # Make sure to have the localities we want
+  sub <- merge(tmp, data.frame(codgeo = dat.all$codgeo), by = "codgeo")
+  
+  # Compute total populations
+  totVacc <- sum(sub$effectif_cumu_1_inj, na.rm = TRUE)
+  totPop <- sum(sub$population_carto, na.rm = TRUE)
+  c(totVacc/totPop, totVacc, totPop)
+}
+
+txVaccAdults <- as.data.frame(t(vapply(dts, computeGlobalVacc, FUN.VALUE = c(1, 2, 3))))
+txVaccTot <- as.data.frame(t(vapply(dts, computeGlobalVacc, FUN.VALUE = c(1, 2, 3), adults = FALSE)))
+
+names(txVaccAdults) <- names(txVaccTot) <- c("txVacc", "nVacc", "nTot")
+txVaccAdults$date <- rownames(txVaccAdults)
+txVaccTot$date <- rownames(txVaccTot)
+
+plot(as.Date(txVaccAdults$date), txVaccAdults$txVacc, ylim = c(0, 1), xlim = c(as.Date("2021-05-01"), as.Date("2022-02-01")), type = "l")
+```
+
+Compute district size distribution
+
+```{r}
+tmp <- vacc[vacc$date == "2022-01-02" & vacc$classe_age == "TOUT_AGE", ]
+# Get the ones for which we have data
+tmpp <- merge(tmp, data.frame(codgeo = dat.all$codgeo), by = "codgeo")
+
+popSizeDistribMedian <- median(tmpp$population_carto)
+popSizeDistribMedian
+
+popSizeDistrib <- quantile(tmpp$population_carto, probs = c(0.25, 0.5, 0.75))
+popSizeDistrib["50%"]
+
+```
+
+```{r}
+# max ORs
+maxOR.Unemployment_Benef <- outLR[outLR$varPred == "Unemployment_Benef" & outLR$thedate == max(outLR$thedate), "OR.abs"]
+```
+
+
+Export 
+
+```{r}
+save(totPopSize, totPopSize.adults, 
+     nIndicatorsTot, nIndicatorsAfterRemovingCorrMiss, 
+     datesAnalysis,
+     nlocalities, 
+     nrep,
+     date.SP.announcement, date.SP.implementation, date.VP.announcement, date.VP.implementation, 
+     dicPred, dic.fullpred,
+     vacc,
+     epci.PLM,
+     txVaccAdults, 
+     txVaccTot,
+     popSizeDistrib, 
+     pops, 
+     maxOR.Unemployment_Benef,
+     file = "outsavevalues.RData")
+
+
+```
+
+
